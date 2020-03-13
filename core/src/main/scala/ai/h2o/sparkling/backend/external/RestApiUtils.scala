@@ -36,6 +36,11 @@ trait RestApiUtils extends RestCommunication {
 
   def isRestAPIBased(hc: H2OContext): Boolean = isRestAPIBased(Some(hc))
 
+  def getPingInfo(conf: H2OConf): PingV3 = {
+    val endpoint = getClusterEndpoint(conf)
+    query[PingV3](endpoint, "/3/Ping", conf)
+  }
+
   def shutdownCluster(conf: H2OConf): Unit = {
     val endpoint = getClusterEndpoint(conf)
     update[ShutdownV3](endpoint, "/3/Shutdown", conf)

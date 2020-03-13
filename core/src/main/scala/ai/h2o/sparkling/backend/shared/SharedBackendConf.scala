@@ -122,8 +122,6 @@ trait SharedBackendConf {
 
   def clientNetworkMask: Option[String] = sparkConf.getOption(PROP_CLIENT_NETWORK_MASK._1)
 
-  def ignoreSparkPublicDNS: Boolean = sparkConf.getBoolean(PROP_CLIENT_IGNORE_SPARK_PUBLIC_DNS._1, PROP_CLIENT_IGNORE_SPARK_PUBLIC_DNS._2)
-
   def clientFlowBaseurlOverride: Option[String] = sparkConf.getOption(PROP_CLIENT_FLOW_BASEURL_OVERRIDE._1)
 
   def clientExtraProperties: Option[String] = sparkConf.getOption(PROP_CLIENT_EXTRA_PROPERTIES._1)
@@ -274,10 +272,6 @@ trait SharedBackendConf {
   def setClientVerboseDisabled(): H2OConf = set(PROP_CLIENT_VERBOSE._1, value = false)
 
   def setClientNetworkMask(mask: String): H2OConf = set(PROP_CLIENT_NETWORK_MASK._1, mask)
-
-  def setIgnoreSparkPublicDNSEnabled(): H2OConf = set(PROP_CLIENT_IGNORE_SPARK_PUBLIC_DNS._1, value = true)
-
-  def setIgnoreSparkPublicDNSDisabled(): H2OConf = set(PROP_CLIENT_IGNORE_SPARK_PUBLIC_DNS._1, value = false)
 
   def setClientFlowBaseurlOverride(baseUrl: String): H2OConf = set(PROP_CLIENT_FLOW_BASEURL_OVERRIDE._1, baseUrl)
 
@@ -439,9 +433,6 @@ object SharedBackendConf {
 
   /** Subnet selector for H2O client - if the mask is specified then Spark network setup is not discussed. */
   val PROP_CLIENT_NETWORK_MASK: (String, None.type) = ("spark.ext.h2o.client.network.mask", None)
-
-  /** Ignore SPARK_PUBLIC_DNS setting on the H2O client. The option still applies to the Spark application. */
-  val PROP_CLIENT_IGNORE_SPARK_PUBLIC_DNS: (String, Boolean) = ("spark.ext.h2o.client.ignore.SPARK_PUBLIC_DNS", false)
 
   /**
    * Allows to override the base URL address of Flow UI, including the scheme, which is showed

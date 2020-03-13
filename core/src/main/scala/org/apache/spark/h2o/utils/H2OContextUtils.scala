@@ -56,14 +56,6 @@ private[spark] trait H2OContextUtils extends Logging {
     */
   def isTesting(sc: SparkContext) = sc.conf.contains("spark.testing") || sys.props.contains("spark.testing")
 
-  /** Checks whether version of provided Spark is the same as Spark's version designated for this Sparkling Water version.
-    * We check for correct version in shell scripts and during the build but we need to do the check also in the code in cases when the user
-    * executes for example spark-shell command with sparkling water assembly jar passed as --jars and initiates H2OContext.
-    * (Because in that case no check for correct Spark version has been done so far.)
-    */
-  def isRunningOnCorrectSpark(sc: SparkContext) = sc.version.startsWith(BuildInfo.buildSparkMajorVersion)
-
-
   def withConversionDebugPrints[R <: Frame](sc: SparkContext, conversionName: String, block: => R): R = {
     val propName = "spark.h2o.measurements.timing"
     val performancePrintConf = sc.getConf.getOption(propName).orElse(sys.props.get(propName))
@@ -76,12 +68,6 @@ private[spark] trait H2OContextUtils extends Logging {
       result
     } else {
       block
-    }
-  }
-
-  protected def verifyLogContainer(logContainer: String): Unit = {
-    if (!Seq("ZIP", "LOG").contains(logContainer)) {
-      throw new IllegalArgumentException(s"Supported LOG container is either LOG or ZIP, specified was: $logContainer")
     }
   }
 

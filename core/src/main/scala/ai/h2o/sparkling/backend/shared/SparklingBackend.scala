@@ -18,7 +18,6 @@
 package ai.h2o.sparkling.backend.shared
 
 import org.apache.spark.h2o.H2OConf
-import org.apache.spark.h2o.ui.SparklingWaterHeartbeatEvent
 import org.apache.spark.h2o.utils.NodeDesc
 
 trait SparklingBackend {
@@ -28,6 +27,4 @@ trait SparklingBackend {
   def backendUIInfo: Seq[(String, String)]
 
   def epilog: String
-
-  def getSparklingWaterHeartbeatEvent: SparklingWaterHeartbeatEvent
 }

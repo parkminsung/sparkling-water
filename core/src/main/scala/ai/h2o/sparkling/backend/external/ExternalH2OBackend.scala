@@ -25,12 +25,10 @@ import ai.h2o.sparkling.utils.ScalaUtils._
 import ai.h2o.sparkling.utils.SparkSessionUtils
 import org.apache.commons.io.IOUtils
 import org.apache.spark.expose.Logging
-import org.apache.spark.h2o.ui.SparklingWaterHeartbeatEvent
 import org.apache.spark.h2o.utils.NodeDesc
 import org.apache.spark.h2o.{BuildInfo, H2OConf, H2OContext}
 import org.apache.spark.{SparkEnv, SparkFiles}
-import water.api.schemas3.{CloudLockV3, PingV3}
-import water.util.PrettyPrint
+import water.api.schemas3.CloudLockV3
 
 import scala.io.Source
 
@@ -67,13 +65,6 @@ class ExternalH2OBackend(val hc: H2OContext) extends SparklingBackend with Loggi
     } else {
       ""
     }
-
-  override def getSparklingWaterHeartbeatEvent: SparklingWaterHeartbeatEvent = {
-    val conf = hc.getConf
-    val ping = getPingInfo(conf)
-    val memoryInfo = ping.nodes.map(node => (node.ip_port, PrettyPrint.bytes(node.free_mem)))
-    SparklingWaterHeartbeatEvent(ping.cloud_healthy, ping.cloud_uptime_millis, memoryInfo)
-  }
 
   private def launchExternalH2OOnYarn(conf: H2OConf): Unit = {
     logInfo("Starting the external H2O cluster on YARN.")
@@ -216,11 +207,6 @@ class ExternalH2OBackend(val hc: H2OContext) extends SparklingBackend with Loggi
     ----------------------------------------------
     ${nodesWithoutWeb.map(_._1.ipPort()).mkString("\n    ")}""", nodesWithoutWeb.head._2)
     }
-  }
-
-  private def getPingInfo(conf: H2OConf): PingV3 = {
-    val endpoint = getClusterEndpoint(conf)
-    query[PingV3](endpoint, "/3/Ping", conf)
   }
 
   private def getAndVerifyWorkerNodes(conf: H2OConf): Array[NodeDesc] = {

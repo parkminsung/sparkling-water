@@ -15,12 +15,13 @@
 * limitations under the License.
 */
 
-package ai.h2o.sparkling.backend.external
+package ai.h2o.sparkling.backend
 
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 
+import ai.h2o.sparkling.backend.external.{RestApiUtils, RestCommunication}
 import org.apache.spark.h2o.H2OConf
 
 trait H2OContextUtils extends RestCommunication with RestApiUtils {
@@ -32,7 +33,14 @@ trait H2OContextUtils extends RestCommunication with RestApiUtils {
     s"h2ologs_$now"
   }
 
-  def downloadLogs(destinationDir: String, logContainer: String, conf: H2OConf): String = {
+  private def verifyLogContainer(logContainer: String): Unit = {
+    if (!Seq("ZIP", "LOG").contains(logContainer)) {
+      throw new IllegalArgumentException(s"Supported LOG container is either LOG or ZIP, specified was: $logContainer")
+    }
+  }
+
+  def downloadH2OLogs(destinationDir: String, logContainer: String, conf: H2OConf): String = {
+    verifyLogContainer(logContainer)
     val endpoint = RestApiUtils.getClusterEndpoint(conf)
     val file = new File(destinationDir, s"${logFileName()}.${logContainer.toLowerCase}")
     val logEndpoint = s"/3/Logs/download/$logContainer"
