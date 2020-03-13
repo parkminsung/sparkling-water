@@ -71,7 +71,7 @@ private[backend] object Converter {
     val nonEmptyPartitions = getNonEmptyPartitions(partitionSizes)
     // prepare required metadata
     val uploadPlan = scheduleUpload(nonEmptyPartitions.size, rdd)
-    val operation: SparkJob[Row] = perDataFramePartition(conf, elemStartIndices, maxVecSizes, keyName, expectedTypes,
+    val operation: SparkJob[Row] = perDataFramePartition(conf, elemStartIndices, maxVecSizes, elemMaxSizes, keyName, expectedTypes,
       uploadPlan, sparseInfo, nonEmptyPartitions, partitionSizes)
     val rows = hc.sparkContext.runJob(rdd, operation, nonEmptyPartitions) // eager, not lazy, evaluation
     val res = new Array[Long](nonEmptyPartitions.size)
@@ -122,6 +122,7 @@ private[backend] object Converter {
   private def perDataFramePartition(conf: H2OConf,
                                     elemStartIndices: Array[Int],
                                     maxVecSizes: Array[Int],
+                                    elemMaxSizes: Array[Int],
                                     keyName: String,
                                     expectedTypes: Array[Byte],
                                     uploadPlan: Converter.UploadPlan,
@@ -140,7 +141,7 @@ private[backend] object Converter {
         maxVecSizes,
         sparse)) { writer =>
       it.foldLeft(0) {
-        case (localRowIdx, row) => sparkRowToH2ORow(row, localRowIdx, writer, elemStartIndices, maxVecSizes)
+        case (localRowIdx, row) => sparkRowToH2ORow(row, localRowIdx, writer, elemStartIndices, elemMaxSizes)
       }
     }
     (chunkIdx, partitionSize)
@@ -149,7 +150,7 @@ private[backend] object Converter {
   /**
    * Converts a single Spark Row to H2O Row with expanded vectors and arrays
    */
-  private def sparkRowToH2ORow(row: Row, rowIdx: Int, con: Writer, elemStartIndices: Array[Int], maxVecSizes: Array[Int]): Int = {
+  private def sparkRowToH2ORow(row: Row, rowIdx: Int, con: Writer, elemStartIndices: Array[Int], elemMaxSizes: Array[Int]): Int = {
     con.startRow(rowIdx)
     row.schema.fields.zipWithIndex.foreach { case (entry, idxField) =>
       val idxH2O = elemStartIndices(idxField)
@@ -168,8 +169,8 @@ private[backend] object Converter {
           case StringType => con.put(idxH2O, row.getString(idxField))
           case TimestampType => con.put(idxH2O, row.getAs[java.sql.Timestamp](idxField))
           case DateType => con.put(idxH2O, row.getAs[java.sql.Date](idxField))
-          case v if ExposeUtils.isMLVectorUDT(v) => con.putVector(idxH2O, row.getAs[ml.linalg.Vector](idxField), maxVecSizes(idxField))
-          case _: mllib.linalg.VectorUDT => con.putVector(idxH2O, row.getAs[mllib.linalg.Vector](idxField), maxVecSizes(idxField))
+          case v if ExposeUtils.isMLVectorUDT(v) => con.putVector(idxH2O, row.getAs[ml.linalg.Vector](idxField), elemMaxSizes(idxField))
+          case _: mllib.linalg.VectorUDT => con.putVector(idxH2O, row.getAs[mllib.linalg.Vector](idxField), elemMaxSizes(idxField))
           case udt if ExposeUtils.isUDT(udt) => throw new UnsupportedOperationException(s"User defined type is not supported: ${udt.getClass}")
           case unsupported => throw new UnsupportedOperationException(s"Data of type ${unsupported.getClass} are not supported for the conversion" +
             s"to H2OFrame.")
