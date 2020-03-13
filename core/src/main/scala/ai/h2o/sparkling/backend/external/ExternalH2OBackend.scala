@@ -34,7 +34,7 @@ import water.api.schemas3.CloudLockV3
 import scala.io.Source
 
 
-class ExternalH2OBackend(val hc: H2OContext) extends SparklingBackend with Logging with RestApiUtils {
+class ExternalH2OBackend(val hc: H2OContext) extends SparklingBackend with Logging {
 
   var yarnAppId: Option[String] = None
 
@@ -174,7 +174,7 @@ class ExternalH2OBackend(val hc: H2OContext) extends SparklingBackend with Loggi
   private def verifyVersion(nodes: Array[NodeDesc]): Unit = {
     val referencedVersion = BuildInfo.H2OVersion
     for (node <- nodes) {
-      val externalVersion = getCloudInfoFromNode(node, hc.getConf).version
+      val externalVersion = RestApiUtils.getCloudInfoFromNode(node, hc.getConf).version
       if (referencedVersion != externalVersion) {
         if (hc.getConf.isAutoClusterStartUsed) {
           stopExternalH2OCluster()
@@ -188,13 +188,13 @@ class ExternalH2OBackend(val hc: H2OContext) extends SparklingBackend with Loggi
 
   private def lockCloud(conf: H2OConf): Unit = {
     val endpoint = RestApiUtils.getClusterEndpoint(conf)
-    update[CloudLockV3](endpoint, "/3/CloudLock", conf, Map("reason" -> "Locked from Sparkling Water."))
+    RestApiUtils.update[CloudLockV3](endpoint, "/3/CloudLock", conf, Map("reason" -> "Locked from Sparkling Water."))
   }
 
   private def verifyWebOpen(nodes: Array[NodeDesc], conf: H2OConf): Unit = {
     val nodesWithoutWeb = nodes.flatMap { node =>
       try {
-        getCloudInfoFromNode(node, conf)
+        RestApiUtils.getCloudInfoFromNode(node, conf)
         None
       } catch {
         case cause: RestApiException => Some((node, cause))
@@ -213,12 +213,12 @@ class ExternalH2OBackend(val hc: H2OContext) extends SparklingBackend with Loggi
   private def getAndVerifyWorkerNodes(conf: H2OConf): Array[NodeDesc] = {
     try {
       lockCloud(conf)
-      val nodes = getNodes(conf)
+      val nodes = RestApiUtils.getNodes(conf)
       verifyWebOpen(nodes, conf)
       if (!conf.isBackendVersionCheckDisabled) {
         verifyVersion(nodes)
       }
-      val leaderIpPort = getLeaderNode(conf).ipPort()
+      val leaderIpPort = RestApiUtils.getLeaderNode(conf).ipPort()
       if (conf.h2oCluster.get != leaderIpPort) {
         logInfo(s"Updating %s to H2O's leader node %s".format(ExternalBackendConf.PROP_EXTERNAL_CLUSTER_REPRESENTATIVE._1, leaderIpPort))
         conf.setH2OCluster(leaderIpPort)
