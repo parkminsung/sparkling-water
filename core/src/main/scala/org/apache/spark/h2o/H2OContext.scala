@@ -141,7 +141,7 @@ class H2OContext private(private val conf: H2OConf) extends Logging with H2OCont
 
   private def setTimeZone(): Unit = {
     if (conf.isSparkTimeZoneFollowed) {
-      val sparkTimeZone = SparkSession.active
+      val sparkTimeZone = SparkSessionUtils.active
         .sparkContext
         .getConf
         .getOption("spark.sql.session.timeZone")
@@ -542,7 +542,7 @@ object H2OContext extends Logging {
    * (Because in that case no check for correct Spark version has been done so far.)
    */
   private def verifySparkVersion(): Unit = {
-    val sc = SparkSession.active.sparkContext
+    val sc = SparkSessionUtils.active.sparkContext
     val runningOnCorrectSpark = sc.version.startsWith(BuildInfo.buildSparkMajorVersion)
     if (!runningOnCorrectSpark) {
       throw new WrongSparkVersion(s"You are trying to use Sparkling Water built for Spark ${BuildInfo.buildSparkMajorVersion}," +
