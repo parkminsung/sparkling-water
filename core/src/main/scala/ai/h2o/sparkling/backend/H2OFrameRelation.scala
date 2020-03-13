@@ -27,7 +27,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 
 /** REST-based H2O relation implementing column filter operation.
  */
-private[backend] case class H2OFrameRelation(frame: H2OFrame, copyMetadata: Boolean)
+case class H2OFrameRelation(frame: H2OFrame, copyMetadata: Boolean)
                                             (@transient val sqlContext: SQLContext)
   extends BaseRelation with TableScan with PrunedScan /* with PrunedFilterScan */ {
 

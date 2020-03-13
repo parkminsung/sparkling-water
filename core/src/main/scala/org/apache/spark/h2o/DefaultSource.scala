@@ -15,9 +15,9 @@
 * limitations under the License.
 */
 
-package ai.h2o.sparkling.backend
+package org.apache.spark.h2o
 
-import org.apache.spark.h2o.{Frame, H2OContext}
+import ai.h2o.sparkling.backend.H2OFrameRelation
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}

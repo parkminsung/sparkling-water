@@ -1,1 +1,1 @@
-ai.h2o.sparkling.backend.DefaultSource
+org.apache.spark.h2o.DefaultSource
