@@ -34,7 +34,7 @@ import scala.reflect.ClassTag
 import scala.reflect.runtime.universe._
 
 
-object Converter {
+private[backend] object Converter {
   type SparkJob[T] = (TaskContext, Iterator[T]) => (Int, Long)
   type UploadPlan = immutable.Map[Int, NodeDesc]
 

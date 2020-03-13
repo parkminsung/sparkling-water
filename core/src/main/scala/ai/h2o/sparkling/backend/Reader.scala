@@ -31,7 +31,7 @@ import org.apache.spark.unsafe.types.UTF8String
  * @param chunkIdx chunk index
  * @param nodeDesc the h2o node which has data for chunk with the chunkIdx
  */
-class Reader(val keyName: String, val chunkIdx: Int, val numRows: Int,
+private[backend] class Reader(val keyName: String, val chunkIdx: Int, val numRows: Int,
              val nodeDesc: NodeDesc, expectedTypes: Array[Byte], selectedColumnIndices: Array[Int],
              val conf: H2OConf) {
   /** Current row index */

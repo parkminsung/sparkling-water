@@ -26,7 +26,7 @@ import org.apache.spark.h2o.utils.NodeDesc
 import org.apache.spark.ml.linalg.{DenseVector, SparseVector}
 import org.apache.spark.{ml, mllib}
 
-private[sparkling] class Writer(conf: H2OConf,
+private[backend] class Writer(conf: H2OConf,
                                 nodeDesc: NodeDesc,
                                 frameName: String,
                                 numRows: Int,
