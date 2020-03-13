@@ -27,13 +27,13 @@ import org.apache.spark.ml.linalg.{DenseVector, SparseVector}
 import org.apache.spark.{ml, mllib}
 
 private[backend] class Writer(conf: H2OConf,
-                                nodeDesc: NodeDesc,
-                                frameName: String,
-                                numRows: Int,
-                                expectedTypes: Array[Byte],
-                                chunkId: Int,
-                                maxVecSizes: Array[Int],
-                                sparse: Array[Boolean]) extends Closeable {
+                              nodeDesc: NodeDesc,
+                              frameName: String,
+                              numRows: Int,
+                              expectedTypes: Array[Byte],
+                              chunkId: Int,
+                              maxVecSizes: Array[Int],
+                              sparse: Array[Boolean]) extends Closeable {
 
   private val outputStream = H2OChunk.putChunk(nodeDesc, conf, frameName, numRows, chunkId, expectedTypes, maxVecSizes)
   private val chunkWriter: ChunkAutoBufferWriter = new ChunkAutoBufferWriter(outputStream)

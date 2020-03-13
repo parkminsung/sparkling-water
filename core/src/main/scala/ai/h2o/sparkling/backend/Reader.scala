@@ -32,11 +32,11 @@ import org.apache.spark.unsafe.types.UTF8String
  * @param nodeDesc the h2o node which has data for chunk with the chunkIdx
  */
 private[backend] class Reader(val keyName: String, val chunkIdx: Int, val numRows: Int,
-             val nodeDesc: NodeDesc, expectedTypes: Array[Byte], selectedColumnIndices: Array[Int],
-             val conf: H2OConf) {
+                              val nodeDesc: NodeDesc, expectedTypes: Array[Byte], selectedColumnIndices: Array[Int],
+                              val conf: H2OConf) {
   /** Current row index */
   var rowIdx: Int = 0
-  
+
   private val reader = new ChunkAutoBufferReader(
     H2OChunk.getChunkAsInputStream(nodeDesc, conf, keyName, numRows, chunkIdx, expectedTypes, selectedColumnIndices))
 
@@ -48,7 +48,7 @@ private[backend] class Reader(val keyName: String, val chunkIdx: Int, val numRow
     val value = read(reader)
     if (reader.isLastNA) ifMissing(s"Row $rowIdx column $columnNum") else value
   }
-  
+
   protected def booleanAt(source: ChunkAutoBufferReader): Boolean = source.readBoolean()
 
   protected def byteAt(source: ChunkAutoBufferReader): Byte = source.readByte()
@@ -78,7 +78,7 @@ private[backend] class Reader(val keyName: String, val chunkIdx: Int, val numRow
   type OptionReader = Int => Option[Any]
 
   type Reader = Int => Any
-  
+
   protected def utfString(source: ChunkAutoBufferReader) = UTF8String.fromString(string(source))
 
   protected def timestamp(source: ChunkAutoBufferReader): Long = longAt(source) * 1000
@@ -97,7 +97,7 @@ private[backend] class Reader(val keyName: String, val chunkIdx: Int, val numRow
       provider = () => reader.apply(columnIndex)
     } yield provider
   }
-  
+
   /**
    * This map registers for each type corresponding extractor
    *
