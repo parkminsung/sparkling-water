@@ -25,12 +25,7 @@ import org.apache.spark.h2o.utils.SupportedTypes.{Boolean, Byte, Date, Double, F
 import org.apache.spark.h2o.utils.{NodeDesc, SupportedTypes}
 import org.apache.spark.unsafe.types.UTF8String
 
-/**
- *
- * @param keyName  key name of frame to query data from
- * @param chunkIdx chunk index
- * @param nodeDesc the h2o node which has data for chunk with the chunkIdx
- */
+
 private[backend] class Reader(val keyName: String, val chunkIdx: Int, val numRows: Int,
                               val nodeDesc: NodeDesc, expectedTypes: Array[Byte], selectedColumnIndices: Array[Int],
                               val conf: H2OConf) {
