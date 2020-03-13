@@ -15,8 +15,16 @@
 * limitations under the License.
 */
 
-package ai.h2o.sparkling.backend.external
+package ai.h2o.sparkling.backend
 
-class H2OClusterNotReachableException(msg: String, cause: Throwable) extends RestApiException(msg, cause) {
-  def this(msg: String) = this(msg, null)
+import org.apache.spark.h2o.H2OConf
+import org.apache.spark.h2o.utils.NodeDesc
+
+trait SparklingBackend {
+
+  def init(conf: H2OConf): Array[NodeDesc]
+
+  def backendUIInfo: Seq[(String, String)]
+
+  def epilog: String
 }

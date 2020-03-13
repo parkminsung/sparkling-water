@@ -20,7 +20,8 @@ package ai.h2o.sparkling.backend.external
 import java.io.{File, FileInputStream, FileOutputStream}
 import java.util.Properties
 
-import ai.h2o.sparkling.backend.shared.{ArgumentBuilder, SharedBackendConf, SparklingBackend}
+import ai.h2o.sparkling.backend.{H2OClusterNotReachableException, SharedBackendConf, SparklingBackend}
+import ai.h2o.sparkling.backend.utils.{ArgumentBuilder, RestApiException, RestApiUtils}
 import ai.h2o.sparkling.utils.ScalaUtils._
 import ai.h2o.sparkling.utils.SparkSessionUtils
 import org.apache.commons.io.IOUtils

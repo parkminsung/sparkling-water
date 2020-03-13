@@ -15,14 +15,12 @@
 * limitations under the License.
 */
 
-package ai.h2o.sparkling.backend.external
+package ai.h2o.sparkling.backend
 
-import ai.h2o.sparkling.backend.shared.{H2ODataFrameBase, Reader}
 import ai.h2o.sparkling.frame.H2OFrame
 import org.apache.spark.h2o.H2OContext
 import org.apache.spark.h2o.utils.ReflectionUtils
-import org.apache.spark.h2o.utils.SupportedTypes.{SupportedType, VecType}
-import org.apache.spark.rdd.RDD
+import org.apache.spark.h2o.utils.SupportedTypes.{SimpleType, SupportedType, VecType, bySparkType}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.{Partition, TaskContext}
@@ -34,9 +32,9 @@ import org.apache.spark.{Partition, TaskContext}
  * @param requiredColumns list of the columns which should be provided by iterator, null means all
  * @param hc              an instance of H2O Context
  */
-private[backend] class ExternalBackendH2ODataFrame(val frame: H2OFrame, val requiredColumns: Array[String])
-                                                  (@transient val hc: H2OContext)
-  extends RDD[InternalRow](hc.sparkContext, Nil) with H2ODataFrameBase with ExternalBackendSparkEntity {
+private[backend] class H2ODataFrame(val frame: H2OFrame, val requiredColumns: Array[String])
+                                   (@transient val hc: H2OContext)
+  extends H2OAwareEmptyRDD[InternalRow](hc.sparkContext, hc.getH2ONodes()) with H2OSparkEntity {
 
   private val h2oConf = hc.getConf
 
@@ -44,7 +42,7 @@ private[backend] class ExternalBackendH2ODataFrame(val frame: H2OFrame, val requ
 
   private val colNames = frame.columns.map(_.name)
 
-  protected override val types: Array[DataType] = frame.columns.map(ReflectionUtils.dataTypeFor)
+  protected val types: Array[DataType] = frame.columns.map(ReflectionUtils.dataTypeFor)
 
   override val selectedColumnIndices: Array[Int] = {
     if (requiredColumns == null) {
@@ -54,21 +52,40 @@ private[backend] class ExternalBackendH2ODataFrame(val frame: H2OFrame, val requ
     }
   }
 
-  override val expectedTypes: Option[Array[VecType]] = {
+  override val expectedTypes: Array[VecType] = {
     // prepare expected type selected columns in the same order as are selected columns
     val javaClasses = selectedColumnIndices.map(indexToSupportedType(_).javaClass)
-    Option(ExternalH2OBackend.prepareExpectedTypes(javaClasses))
+    Converter.prepareExpectedTypes(javaClasses)
   }
 
   override def compute(split: Partition, context: TaskContext): Iterator[InternalRow] = {
-    new H2ODataFrameIterator {
+    new H2OChunkIterator[InternalRow] {
       private val chnk = frame.chunks.find(_.index == split.index).head
-      override val reader: Reader = new ExternalBackendReader(frameKeyName, split.index, chnk.numberOfRows,
-        chnk.location, expectedTypes.get, selectedColumnIndices, h2oConf)
+      override val reader: Reader = new Reader(frameKeyName, split.index, chnk.numberOfRows,
+        chnk.location, expectedTypes, selectedColumnIndices, h2oConf)
+
+      private lazy val columnIndicesWithTypes: Array[(Int, SimpleType[_])] = selectedColumnIndices map (i => (i, bySparkType(types(i))))
+
+      /*a sequence of value providers, per column*/
+      private lazy val columnValueProviders: Array[() => Option[Any]] = reader.columnValueProviders(columnIndicesWithTypes)
+
+      def readOptionalData: Seq[Option[Any]] = columnValueProviders map (_ ())
+
+      private def readRow: InternalRow = {
+        val optionalData: Seq[Option[Any]] = readOptionalData
+        val nullableData: Seq[Any] = optionalData map (_ orNull)
+        InternalRow.fromSeq(nullableData)
+      }
+
+      override def next(): InternalRow = {
+        val row = readRow
+        reader.increaseRowIdx()
+        row
+      }
     }
   }
 
-  protected override def indexToSupportedType(index: Int): SupportedType = {
+  protected def indexToSupportedType(index: Int): SupportedType = {
     val column = frame.columns(index)
     ReflectionUtils.supportedType(column)
   }

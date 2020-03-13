@@ -15,25 +15,57 @@
 * limitations under the License.
 */
 
-package ai.h2o.sparkling.backend.shared
+package ai.h2o.sparkling.backend
 
 import java.lang.reflect.Constructor
 
+import ai.h2o.sparkling.frame.H2OFrame
+import org.apache.spark.h2o.H2OContext
 import org.apache.spark.h2o.utils.ProductType
+import org.apache.spark.{Partition, TaskContext}
 
-import scala.annotation.meta.{field, getter}
+import scala.annotation.meta.{field, getter, param}
 import scala.language.postfixOps
 import scala.reflect.ClassTag
+import scala.reflect.runtime.universe._
 
 
 /**
- * The abstract class contains common methods for client-based and REST-based RDDs.
+ * Convert H2OFrame into an RDD (lazily).
+ *
+ * @param frame       an instance of H2O frame
+ * @param productType pre-calculated deconstructed type of result
+ * @param hc          an instance of H2O context
+ * @tparam A type for resulting RDD
  */
-private[backend] trait H2ORDDBase[A <: Product] extends H2OSparkEntity {
+private[backend] class H2ORDD[A <: Product : TypeTag : ClassTag] private(val frame: H2OFrame, val productType: ProductType)
+                                                                        (@(transient@param @field) hc: H2OContext)
+  extends H2OAwareEmptyRDD[A](hc.sparkContext, hc.getH2ONodes()) with H2OSparkEntity {
 
-  def productType: ProductType
+  override val expectedTypes: Array[Byte] = Converter.prepareExpectedTypes(productType.memberClasses)
 
-  protected def colNames: Array[String]
+  private val h2oConf = hc.getConf
+
+  // Get product type before building an RDD
+  def this(@transient frame: H2OFrame)
+          (@transient hc: H2OContext) = this(frame, ProductType.create[A])(hc)
+
+  override def compute(split: Partition, context: TaskContext): Iterator[A] = {
+    new H2ORDDIterator {
+      private val chnk = frame.chunks.find(_.index == split.index).head
+      override val reader: Reader = new Reader(frameKeyName, split.index, chnk.numberOfRows,
+        chnk.location, expectedTypes, selectedColumnIndices, h2oConf)
+    }
+  }
+
+  protected val colNames: Array[String] = {
+    val names = frame.columns.map(_.name)
+    checkColumnNames(names)
+    names
+  }
+
+  protected val jc: Class[_] = implicitly[ClassTag[A]].runtimeClass
+
 
   /**
    * The method checks that H2OFrame & given Scala type are compatible
@@ -49,7 +81,6 @@ private[backend] trait H2ORDDBase[A <: Product] extends H2OSparkEntity {
       }
     }
   }
-  protected val jc : Class[_]
 
   private def columnReaders(rcc: Reader) = productType.memberTypeNames map rcc.readerMapByName
 

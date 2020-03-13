@@ -15,7 +15,7 @@
 * limitations under the License.
 */
 
-package ai.h2o.sparkling.backend.external
+package ai.h2o.sparkling.backend
 
 import ai.h2o.sparkling.frame.{H2OColumn, H2OColumnType, H2OFrame}
 import org.apache.spark.h2o.H2OContext
@@ -27,8 +27,8 @@ import org.apache.spark.sql.{Row, SQLContext}
 
 /** REST-based H2O relation implementing column filter operation.
  */
-private[backend] case class ExternalBackendH2OFrameRelation(frame: H2OFrame, copyMetadata: Boolean)
-                                                           (@transient val sqlContext: SQLContext)
+private[backend] case class H2OFrameRelation(frame: H2OFrame, copyMetadata: Boolean)
+                                            (@transient val sqlContext: SQLContext)
   extends BaseRelation with TableScan with PrunedScan /* with PrunedFilterScan */ {
 
   lazy val h2oContext = H2OContext.ensure("H2OContext has to be started in order to do " +
@@ -42,10 +42,10 @@ private[backend] case class ExternalBackendH2OFrameRelation(frame: H2OFrame, cop
   override val schema: StructType = createSchema(frame, copyMetadata)
 
   override def buildScan(): RDD[Row] =
-    new ExternalBackendH2ODataFrame(frame)(h2oContext).asInstanceOf[RDD[Row]]
+    new H2ODataFrame(frame)(h2oContext).asInstanceOf[RDD[Row]]
 
   override def buildScan(requiredColumns: Array[String]): RDD[Row] =
-    new ExternalBackendH2ODataFrame(frame, requiredColumns)(h2oContext).asInstanceOf[RDD[Row]]
+    new H2ODataFrame(frame, requiredColumns)(h2oContext).asInstanceOf[RDD[Row]]
 
 
   private def extractMetadata(column: H2OColumn, numberOfRows: Long): Metadata = {

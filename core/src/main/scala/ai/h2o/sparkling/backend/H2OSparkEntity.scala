@@ -15,22 +15,34 @@
 * limitations under the License.
 */
 
-package ai.h2o.sparkling.backend.shared
+package ai.h2o.sparkling.backend
 
+import ai.h2o.sparkling.frame.{H2OChunk, H2OFrame}
 import org.apache.spark.Partition
 
 /**
  * Contains functions that are shared between all H2O DataFrames and RDDs.
  */
 private[backend] trait H2OSparkEntity {
-  /** Cache frame key to get H2OFrame from the K/V store */
-  def frameKeyName: String
+  /** Underlying H2O Frame */
+  val frame: H2OFrame
+
+  /** Cache frame key to get H2OFrame from the H2O backend */
+  val frameKeyName: String = frame.frameId
+
+  /** Number of chunks per a vector */
+  val numChunks: Int = frame.chunks.length
+
+  /** Create new types list which describes expected types in a way external H2O backend can use it. This list
+   * contains types in a format same for H2ODataFrame and H2ORDD */
+  val expectedTypes: Array[Byte]
+
+  /** Chunk locations helps us to determine the node which really has the data we needs. */
+  val chksLocation: Option[Array[H2OChunk]] = Some(frame.chunks)
+
 
   /** Selected column indices */
   val selectedColumnIndices: Array[Int]
-
-  /** Number of chunks per a vector */
-  def numChunks: Int
 
   protected def getPartitions: Array[Partition] = {
     val res = new Array[Partition](numChunks)
@@ -47,5 +59,4 @@ private[backend] trait H2OSparkEntity {
 
     override def hasNext: Boolean = reader.hasNext
   }
-
 }

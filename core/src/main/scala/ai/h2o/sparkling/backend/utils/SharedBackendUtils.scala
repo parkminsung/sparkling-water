@@ -15,11 +15,11 @@
 * limitations under the License.
 */
 
-package ai.h2o.sparkling.backend.shared
+package ai.h2o.sparkling.backend.utils
 
 import java.io.File
 
-import ai.h2o.sparkling.backend.external.RestApiUtils
+import ai.h2o.sparkling.backend.SharedBackendConf
 import org.apache.spark.expose.{Logging, Utils}
 import org.apache.spark.h2o.H2OConf
 import org.apache.spark.h2o.utils.NodeDesc
@@ -160,9 +160,6 @@ trait SharedBackendUtils extends Logging with Serializable {
     new ArgumentBuilder()
       .add(getH2OCommonArgs(conf))
       .add(getH2OSecurityArgs(conf))
-      // We always start Flow Proxy to leader node on the Spark driver
-      // in Rest API mode or in H2O client mode. In client mode, disable web as we wil use that proxy
-      .add("-disable_web")
       .addIf("-quiet", !conf.clientVerboseOutput)
       .add("-log_level", conf.h2oClientLogLevel)
       .add("-log_dir", conf.h2oClientLogDir)

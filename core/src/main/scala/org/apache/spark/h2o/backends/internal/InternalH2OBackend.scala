@@ -17,8 +17,8 @@
 
 package org.apache.spark.h2o.backends.internal
 
+import ai.h2o.sparkling.backend.SparklingBackend
 import ai.h2o.sparkling.backend.external.ExternalBackendConf
-import ai.h2o.sparkling.backend.shared.SparklingBackend
 import ai.h2o.sparkling.utils.SparkSessionUtils
 import org.apache.spark.h2o.utils.NodeDesc
 import org.apache.spark.h2o.{H2OConf, H2OContext}

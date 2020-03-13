@@ -15,44 +15,73 @@
 * limitations under the License.
 */
 
-package ai.h2o.sparkling.backend.shared
+package ai.h2o.sparkling.backend
 
-import org.apache.spark.h2o.utils.ReflectionUtils._
-import org.apache.spark.h2o.utils.SupportedTypes
-import org.apache.spark.h2o.utils.SupportedTypes._
+import ai.h2o.sparkling.extensions.serde.ChunkAutoBufferReader
+import ai.h2o.sparkling.frame.H2OChunk
+import org.apache.spark.h2o.H2OConf
+import org.apache.spark.h2o.utils.ReflectionUtils.NameOfType
+import org.apache.spark.h2o.utils.SupportedTypes.{Boolean, Byte, Date, Double, Float, Integer, Long, OptionalType, Short, SimpleType, String, Timestamp, UTF8, byBaseType}
+import org.apache.spark.h2o.utils.{NodeDesc, SupportedTypes}
 import org.apache.spark.unsafe.types.UTF8String
 
-import scala.language.postfixOps
-
 /**
- * Methods which each ReadConverterCtx has to implement.
  *
- * Read Converter Context is a class which holds the state of connection/chunks and allows us to read/download data from those chunks
- * via unified API
+ * @param keyName  key name of frame to query data from
+ * @param chunkIdx chunk index
+ * @param nodeDesc the h2o node which has data for chunk with the chunkIdx
  */
-private[backend] trait Reader {
-
-  /** Type from which we query the data */
-  type DataSource
-
-  /** Key pointing to H2OFrame containing the data */
-  val keyName: String
-
-  /** Chunk Idx/Partition index */
-  val chunkIdx: Int
-
+class Reader(val keyName: String, val chunkIdx: Int, val numRows: Int,
+             val nodeDesc: NodeDesc, expectedTypes: Array[Byte], selectedColumnIndices: Array[Int],
+             val conf: H2OConf) {
   /** Current row index */
   var rowIdx: Int = 0
+  
+  private val reader = new ChunkAutoBufferReader(
+    H2OChunk.getChunkAsInputStream(nodeDesc, conf, keyName, numRows, chunkIdx, expectedTypes, selectedColumnIndices))
 
-  def numRows: Int
+  def returnOption[T](read: ChunkAutoBufferReader => T)(columnNum: Int): Option[T] = {
+    Option(read(reader)).filter(_ => !reader.isLastNA)
+  }
+
+  def returnSimple[T](ifMissing: String => T, read: ChunkAutoBufferReader => T)(columnNum: Int): T = {
+    val value = read(reader)
+    if (reader.isLastNA) ifMissing(s"Row $rowIdx column $columnNum") else value
+  }
+  
+  protected def booleanAt(source: ChunkAutoBufferReader): Boolean = source.readBoolean()
+
+  protected def byteAt(source: ChunkAutoBufferReader): Byte = source.readByte()
+
+  protected def shortAt(source: ChunkAutoBufferReader): Short = source.readShort()
+
+  protected def intAt(source: ChunkAutoBufferReader): Int = source.readInt()
+
+  protected def longAt(source: ChunkAutoBufferReader): Long = source.readLong()
+
+  protected def floatAt(source: ChunkAutoBufferReader): Float = source.readFloat()
+
+  protected def doubleAt(source: ChunkAutoBufferReader): Double = source.readDouble()
+
+  protected def string(source: ChunkAutoBufferReader) = source.readString()
+
+  def hasNext: Boolean = {
+    val isNext = rowIdx < numRows
+    if (!isNext) {
+      reader.close()
+    }
+    isNext
+  }
 
   def increaseRowIdx() = rowIdx += 1
-
-  def hasNext = rowIdx < numRows
 
   type OptionReader = Int => Option[Any]
 
   type Reader = Int => Any
+  
+  protected def utfString(source: ChunkAutoBufferReader) = UTF8String.fromString(string(source))
+
+  protected def timestamp(source: ChunkAutoBufferReader): Long = longAt(source) * 1000
 
   /**
    * For a given array of source column indexes and required data types,
@@ -68,37 +97,7 @@ private[backend] trait Reader {
       provider = () => reader.apply(columnIndex)
     } yield provider
   }
-
-  /**
-   * Returns Option with data was successfully obtained or none otherwise
-   */
-  protected def returnOption[T](read: DataSource => T)(columnNum: Int): Option[T]
-
-  /**
-   * Returns the data if it was obtained successfully or the default value
-   */
-  protected def returnSimple[T](ifMissing: String => T, read: DataSource => T)(columnNum: Int): T
-
-  protected def booleanAt(source: DataSource): Boolean
-
-  protected def byteAt(source: DataSource): Byte
-
-  protected def shortAt(source: DataSource): Short
-
-  protected def intAt(source: DataSource): Int
-
-  protected def longAt(source: DataSource): Long
-
-  protected def floatAt(source: DataSource): Float
-
-  protected def doubleAt(source: DataSource): Double
-
-  protected def string(source: DataSource): String
-
-  protected def utfString(source: DataSource) = UTF8String.fromString(string(source))
-
-  protected def timestamp(source: DataSource): Long = longAt(source) * 1000
-
+  
   /**
    * This map registers for each type corresponding extractor
    *
@@ -108,7 +107,7 @@ private[backend] trait Reader {
    *
    * A map from type name to option reader
    */
-  protected lazy val ExtractorsTable: Map[SimpleType[_], DataSource => _] = Map(
+  protected lazy val ExtractorsTable: Map[SimpleType[_], ChunkAutoBufferReader => _] = Map(
     Boolean -> booleanAt _,
     Byte -> byteAt _,
     Short -> shortAt _,

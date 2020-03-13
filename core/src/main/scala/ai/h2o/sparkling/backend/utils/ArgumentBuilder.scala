@@ -15,7 +15,7 @@
 * limitations under the License.
 */
 
-package ai.h2o.sparkling.backend.shared
+package ai.h2o.sparkling.backend.utils
 
 class ArgumentBuilder() {
   private var arguments = Seq.empty[String]

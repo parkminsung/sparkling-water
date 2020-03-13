@@ -15,10 +15,11 @@
 * limitations under the License.
 */
 
-package ai.h2o.sparkling.backend.shared
+package ai.h2o.sparkling.backend.utils
 
 import java.io.FileNotFoundException
 
+import ai.h2o.sparkling.backend.SharedBackendConf
 import org.apache.spark.expose.Logging
 import org.apache.spark.h2o.H2OConf
 

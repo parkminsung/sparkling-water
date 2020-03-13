@@ -14,17 +14,22 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
+package ai.h2o.sparkling.backend
 
-package ai.h2o.sparkling.backend.shared
-
-import org.apache.spark.h2o.H2OConf
+import org.apache.spark.h2o.H2OContext
 import org.apache.spark.h2o.utils.NodeDesc
+import org.apache.spark.rdd.RDD
+import org.apache.spark.{Partition, SparkContext}
 
-trait SparklingBackend {
+import scala.reflect.ClassTag
 
-  def init(conf: H2OConf): Array[NodeDesc]
+private[backend] abstract class H2OAwareEmptyRDD[U: ClassTag](sc: SparkContext, nodes: Seq[NodeDesc]) extends RDD[U](sc, Nil) {
 
-  def backendUIInfo: Seq[(String, String)]
-
-  def epilog: String
+  override def getPreferredLocations(split: Partition): Seq[String] = {
+    if (H2OContext.ensure().getConf.runsInInternalClusterMode) {
+      nodes.map(nodeDesc => s"executor_${nodeDesc.hostname}_${nodeDesc.nodeId}")
+    } else {
+      super.getPreferredLocations(split)
+    }
+  }
 }

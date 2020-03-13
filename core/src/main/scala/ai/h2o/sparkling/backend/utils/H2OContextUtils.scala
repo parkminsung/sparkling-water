@@ -15,13 +15,12 @@
 * limitations under the License.
 */
 
-package ai.h2o.sparkling.backend
+package ai.h2o.sparkling.backend.utils
 
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 
-import ai.h2o.sparkling.backend.external.{RestApiUtils, RestCommunication}
 import org.apache.spark.h2o.H2OConf
 
 trait H2OContextUtils extends RestCommunication with RestApiUtils {

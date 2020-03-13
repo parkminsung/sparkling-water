@@ -20,9 +20,10 @@ package org.apache.spark.h2o
 import java.util.TimeZone
 import java.util.concurrent.atomic.AtomicReference
 
+import ai.h2o.sparkling.backend.{H2OClusterNotReachableException, SharedBackendConf, SparklingBackend}
 import ai.h2o.sparkling.backend.converters.{DatasetConverter, SparkDataFrameConverter, SupportedRDD, SupportedRDDConverter}
 import ai.h2o.sparkling.backend.external._
-import ai.h2o.sparkling.backend.shared.{AzureDatabricksUtils, Converter, SharedBackendConf, SparklingBackend}
+import ai.h2o.sparkling.backend.utils.{AzureDatabricksUtils, ProxyStarter, RestApiException, RestApiUtils}
 import ai.h2o.sparkling.macros.DeprecatedMethod
 import ai.h2o.sparkling.utils.SparkSessionUtils
 import org.apache.spark._
@@ -197,7 +198,7 @@ class H2OContext private(private val conf: H2OConf) extends Logging with H2OCont
   def asH2OFrameKeyString(rdd: SupportedRDD, frameName: String): String = asH2OFrameKeyString(rdd, Some(frameName))
 
   def asH2OFrameKeyString(rdd: SupportedRDD, frameName: Option[String]): String = {
-    SupportedRDDConverter.toH2OFrameKeyString(this, rdd, frameName, Converter.getConverter(conf))
+    SupportedRDDConverter.toH2OFrameKeyString(this, rdd, frameName)
   }
 
   /** Transforms RDD[Supported type] to H2OFrame */
@@ -205,8 +206,7 @@ class H2OContext private(private val conf: H2OConf) extends Logging with H2OCont
 
   def asH2OFrame(rdd: SupportedRDD, frameName: Option[String]): H2OFrame =
     withConversionDebugPrints(sparkContext, "SupportedRDD", {
-      val converter = Converter.getConverter(conf)
-      val key = SupportedRDDConverter.toH2OFrameKeyString(this, rdd, frameName, converter)
+      val key = SupportedRDDConverter.toH2OFrameKeyString(this, rdd, frameName)
       new H2OFrame(DKV.getGet[Frame](key))
     })
 
@@ -239,7 +239,7 @@ class H2OContext private(private val conf: H2OConf) extends Logging with H2OCont
   def asH2OFrameKeyString(df: DataFrame, frameName: String): String = asH2OFrameKeyString(df, Some(frameName))
 
   def asH2OFrameKeyString(df: DataFrame, frameName: Option[String]): String = {
-    SparkDataFrameConverter.toH2OFrameKeyString(this, df, frameName, Converter.getConverter(conf))
+    SparkDataFrameConverter.toH2OFrameKeyString(this, df, frameName)
   }
 
   /** Transform DataFrame to H2OFrame key */

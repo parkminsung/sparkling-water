@@ -15,8 +15,9 @@
 * limitations under the License.
 */
 
-package ai.h2o.sparkling.backend.shared
+package ai.h2o.sparkling.backend.utils
 
+import ai.h2o.sparkling.backend.SharedBackendConf
 import ai.h2o.sparkling.utils.SparkSessionUtils
 import org.apache.spark.expose.Utils
 import org.apache.spark.h2o.H2OConf
