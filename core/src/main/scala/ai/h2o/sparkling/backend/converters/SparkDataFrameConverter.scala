@@ -19,7 +19,7 @@ package ai.h2o.sparkling.backend.converters
 
 import ai.h2o.sparkling.backend.utils.ConversionUtils.expectedTypesFromClasses
 import ai.h2o.sparkling.backend.{H2OAwareRDD, H2OFrameRelation, Writer, WriterMetadata}
-import ai.h2o.sparkling.ml.utils.SchemaUtils.{collectMaxElementSizes, collectVectorLikeTypes, expandedSchema, flattenDataFrame}
+import ai.h2o.sparkling.ml.utils.SchemaUtils._
 import ai.h2o.sparkling.utils.SparkSessionUtils
 import org.apache.spark.ExposeUtils
 import org.apache.spark.expose.Logging
