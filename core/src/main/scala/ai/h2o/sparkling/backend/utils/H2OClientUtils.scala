@@ -21,12 +21,11 @@ import java.net.{InetAddress, NetworkInterface}
 
 import ai.h2o.sparkling.backend.external.ExternalH2OBackend
 import org.apache.spark.SparkEnv
-import org.apache.spark.expose.Logging
-import org.apache.spark.h2o.{H2OConf, H2OContext}
 import org.apache.spark.h2o.utils.NodeDesc
-import water.{H2O, H2OStarter, Paxos}
+import org.apache.spark.h2o.{H2OConf, H2OContext}
 import water.api.RestAPIManager
 import water.init.{HostnameGuesser, NetworkBridge}
+import water.{H2O, H2OStarter, Paxos}
 
 /**
  * All helper methods which are used when H2O client is running on Spark driver

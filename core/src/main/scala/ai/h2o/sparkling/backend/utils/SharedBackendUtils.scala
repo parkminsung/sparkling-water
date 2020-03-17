@@ -254,4 +254,5 @@ trait SharedBackendUtils extends Logging with Serializable {
       en => s"${translateHostnameToIp(en.hostname)}:${en.port}"
     }.mkString("\n")
   }
+
 }

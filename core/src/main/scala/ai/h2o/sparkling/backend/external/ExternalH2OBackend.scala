@@ -59,7 +59,7 @@ class ExternalH2OBackend(val hc: H2OContext) extends SparklingBackend with Loggi
       ""
     }
 
-  private def launchExternalH2OOnYarn(conf: H2OConf): Unit =  {
+  private def launchExternalH2OOnYarn(conf: H2OConf): Unit = {
     logInfo("Starting the external H2O cluster on YARN.")
     val cmdToLaunch = getExternalH2ONodesArguments(conf)
     logInfo("Command used to start H2O on yarn: " + cmdToLaunch.mkString(" "))
