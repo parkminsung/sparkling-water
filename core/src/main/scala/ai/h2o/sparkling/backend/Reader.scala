@@ -25,13 +25,13 @@ import org.apache.spark.h2o.utils.{NodeDesc, SupportedTypes}
 import org.apache.spark.unsafe.types.UTF8String
 
 
-private[backend] class Reader(private val keyName: String,
-                              private val chunkIdx: Int,
-                              private val numRows: Int,
-                              private val nodeDesc: NodeDesc,
+private[backend] class Reader(keyName: String,
+                              chunkIdx: Int,
+                              numRows: Int,
+                              nodeDesc: NodeDesc,
                               expectedTypes: Array[Byte],
                               selectedColumnIndices: Array[Int],
-                              private val conf: H2OConf) {
+                              conf: H2OConf) {
   /** Current row index */
   private var rowIdx: Int = 0
 

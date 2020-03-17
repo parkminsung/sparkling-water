@@ -20,8 +20,7 @@ package ai.h2o.sparkling.model
 import java.io.File
 import java.nio.file.Files
 
-import ai.h2o.sparkling.backend.utils.RestApiUtils
-import ai.h2o.sparkling.backend.utils.RestCommunication
+import ai.h2o.sparkling.backend.utils.{RestApiUtils, RestCommunication}
 import ai.h2o.sparkling.utils.ScalaUtils.withResource
 import com.google.gson._
 import org.apache.commons.io.IOUtils

@@ -53,7 +53,6 @@ private[backend] object Converter {
     val keyName = frameKeyName.getOrElse("frame_rdd_" + dfRdd.id + Key.rand())
 
     val elemMaxSizes = collectMaxElementSizes(flatDataFrame)
-    val elemStartIndices = collectElemStartPositions(elemMaxSizes)
     val vecIndices = collectVectorLikeTypes(flatDataFrame.schema).toArray
     val sparseInfo = collectSparseInfo(flatDataFrame, elemMaxSizes)
     // Expands RDD's schema ( Arrays and Vectors)
@@ -71,7 +70,7 @@ private[backend] object Converter {
     val nonEmptyPartitions = getNonEmptyPartitions(partitionSizes)
     // prepare required metadata
     val uploadPlan = scheduleUpload(nonEmptyPartitions.size, rdd)
-    val operation: SparkJob[Row] = perDataFramePartition(conf, elemStartIndices, maxVecSizes, elemMaxSizes, keyName, expectedTypes,
+    val operation: SparkJob[Row] = perDataFramePartition(conf, maxVecSizes, keyName, expectedTypes,
       uploadPlan, sparseInfo, nonEmptyPartitions, partitionSizes)
     val rows = hc.sparkContext.runJob(rdd, operation, nonEmptyPartitions) // eager, not lazy, evaluation
     val res = new Array[Long](nonEmptyPartitions.size)
@@ -120,9 +119,7 @@ private[backend] object Converter {
   }
 
   private def perDataFramePartition(conf: H2OConf,
-                                    elemStartIndices: Array[Int],
                                     maxVecSizes: Array[Int],
-                                    elemMaxSizes: Array[Int],
                                     keyName: String,
                                     expectedTypes: Array[Byte],
                                     uploadPlan: Converter.UploadPlan,
@@ -141,7 +138,7 @@ private[backend] object Converter {
         maxVecSizes,
         sparse)) { writer =>
       it.foldLeft(0) {
-        case (localRowIdx, row) => sparkRowToH2ORow(row, localRowIdx, writer, elemStartIndices, elemMaxSizes)
+        case (localRowIdx, row) => sparkRowToH2ORow(row, localRowIdx, writer)
       }
     }
     (chunkIdx, partitionSize)
@@ -150,27 +147,25 @@ private[backend] object Converter {
   /**
    * Converts a single Spark Row to H2O Row with expanded vectors and arrays
    */
-  private def sparkRowToH2ORow(row: Row, rowIdx: Int, con: Writer, elemStartIndices: Array[Int], elemMaxSizes: Array[Int]): Int = {
-    con.startRow(rowIdx)
+  private def sparkRowToH2ORow(row: Row, rowIdx: Int, con: Writer): Int = {
     row.schema.fields.zipWithIndex.foreach { case (entry, idxField) =>
-      val idxH2O = elemStartIndices(idxField)
       if (row.isNullAt(idxField)) {
-        con.putNA(idxH2O, idxField)
+        con.putNA(idxField)
       } else {
         entry.dataType match {
-          case BooleanType => con.put(idxH2O, row.getBoolean(idxField))
-          case ByteType => con.put(idxH2O, row.getByte(idxField))
-          case ShortType => con.put(idxH2O, row.getShort(idxField))
-          case IntegerType => con.put(idxH2O, row.getInt(idxField))
-          case LongType => con.put(idxH2O, row.getLong(idxField))
-          case FloatType => con.put(idxH2O, row.getFloat(idxField))
-          case _: DecimalType => con.put(idxH2O, row.getDecimal(idxField).doubleValue())
-          case DoubleType => con.put(idxH2O, row.getDouble(idxField))
-          case StringType => con.put(idxH2O, row.getString(idxField))
-          case TimestampType => con.put(idxH2O, row.getAs[java.sql.Timestamp](idxField))
-          case DateType => con.put(idxH2O, row.getAs[java.sql.Date](idxField))
-          case v if ExposeUtils.isMLVectorUDT(v) => con.putVector(idxH2O, row.getAs[ml.linalg.Vector](idxField), elemMaxSizes(idxField))
-          case _: mllib.linalg.VectorUDT => con.putVector(idxH2O, row.getAs[mllib.linalg.Vector](idxField), elemMaxSizes(idxField))
+          case BooleanType => con.put(row.getBoolean(idxField))
+          case ByteType => con.put(row.getByte(idxField))
+          case ShortType => con.put(row.getShort(idxField))
+          case IntegerType => con.put(row.getInt(idxField))
+          case LongType => con.put(row.getLong(idxField))
+          case FloatType => con.put(row.getFloat(idxField))
+          case _: DecimalType => con.put(row.getDecimal(idxField).doubleValue())
+          case DoubleType => con.put(row.getDouble(idxField))
+          case StringType => con.put(row.getString(idxField))
+          case TimestampType => con.put(row.getAs[java.sql.Timestamp](idxField))
+          case DateType => con.put(row.getAs[java.sql.Date](idxField))
+          case v if ExposeUtils.isMLVectorUDT(v) => con.putVector(row.getAs[ml.linalg.Vector](idxField))
+          case _: mllib.linalg.VectorUDT => con.putVector(row.getAs[mllib.linalg.Vector](idxField))
           case udt if ExposeUtils.isUDT(udt) => throw new UnsupportedOperationException(s"User defined type is not supported: ${udt.getClass}")
           case unsupported => throw new UnsupportedOperationException(s"Data of type ${unsupported.getClass} are not supported for the conversion" +
             s"to H2OFrame.")
