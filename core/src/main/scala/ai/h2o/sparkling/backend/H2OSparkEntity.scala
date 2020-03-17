@@ -17,7 +17,7 @@
 
 package ai.h2o.sparkling.backend
 
-import ai.h2o.sparkling.frame.{H2OChunk, H2OFrame}
+import ai.h2o.sparkling.frame.H2OFrame
 import org.apache.spark.Partition
 
 /**
@@ -28,17 +28,19 @@ private[backend] trait H2OSparkEntity {
   val selectedColumnIndices: Array[Int]
   val expectedTypes: Array[Byte]
 
-  val frameKeyName: String = frame.frameId
+  val frameId: String = frame.frameId
   val numChunks: Int = frame.chunks.length
-  val chksLocation: Option[Array[H2OChunk]] = Some(frame.chunks)
 
   protected def getPartitions: Array[Partition] = {
     val res = new Array[Partition](numChunks)
-    for (i <- 0 until numChunks) res(i) = new Partition {
-      val index: Int = i
+    for (i <- 0 until numChunks) {
+      res(i) = new Partition {
+        val index: Int = i
+      }
     }
     res
   }
+
 
   /** Base implementation for iterator over rows stored in H2O chunks for given partition. */
   trait H2OChunkIterator[+A] extends Iterator[A] {

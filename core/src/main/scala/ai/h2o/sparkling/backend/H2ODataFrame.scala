@@ -21,7 +21,7 @@ import ai.h2o.sparkling.backend.utils.ConversionUtils
 import ai.h2o.sparkling.frame.H2OFrame
 import org.apache.spark.h2o.H2OContext
 import org.apache.spark.h2o.utils.ReflectionUtils
-import org.apache.spark.h2o.utils.SupportedTypes.{SimpleType, SupportedType, VecType, byBaseType, bySparkType}
+import org.apache.spark.h2o.utils.SupportedTypes._
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.{Partition, TaskContext}
@@ -62,7 +62,7 @@ private[backend] class H2ODataFrame(val frame: H2OFrame, val requiredColumns: Ar
   override def compute(split: Partition, context: TaskContext): Iterator[InternalRow] = {
     new H2OChunkIterator[InternalRow] {
       private val chnk = frame.chunks.find(_.index == split.index).head
-      override val reader: Reader = new Reader(frameKeyName, split.index, chnk.numberOfRows,
+      override val reader: Reader = new Reader(frameId, split.index, chnk.numberOfRows,
         chnk.location, expectedTypes, selectedColumnIndices, h2oConf)
 
       private lazy val columnIndicesWithTypes: Array[(Int, SimpleType[_])] = selectedColumnIndices map (i => (i, bySparkType(types(i))))
@@ -76,11 +76,11 @@ private[backend] class H2ODataFrame(val frame: H2OFrame, val requiredColumns: Ar
         } yield provider
       }
 
-      def readOptionalData: Seq[Option[Any]] = columnValueProviders map (_ ())
+      def readOptionalData: Seq[Option[Any]] = columnValueProviders.map(_ ())
 
       private def readRow: InternalRow = {
         val optionalData: Seq[Option[Any]] = readOptionalData
-        val nullableData: Seq[Any] = optionalData map (_ orNull)
+        val nullableData: Seq[Any] = optionalData.map(_.orNull)
         InternalRow.fromSeq(nullableData)
       }
 
