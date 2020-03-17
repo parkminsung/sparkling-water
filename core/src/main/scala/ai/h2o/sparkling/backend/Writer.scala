@@ -19,21 +19,16 @@ package ai.h2o.sparkling.backend
 
 import java.io.Closeable
 
-import ai.h2o.sparkling.backend.utils.ConversionUtils.expectedTypesFromClasses
 import ai.h2o.sparkling.extensions.serde.{ChunkAutoBufferWriter, SerdeUtils}
 import ai.h2o.sparkling.frame.{H2OChunk, H2OFrame}
-import ai.h2o.sparkling.ml.utils.SchemaUtils._
 import ai.h2o.sparkling.utils.ScalaUtils.withResource
-import org.apache.spark.h2o.utils.SupportedTypes.Double
-import org.apache.spark.h2o.utils.{NodeDesc, ReflectionUtils}
+import ai.h2o.sparkling.utils.SparkSessionUtils
+import org.apache.spark.h2o.utils.NodeDesc
 import org.apache.spark.h2o.{H2OContext, RDD}
-import org.apache.spark.ml.linalg.Vector
+import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.{ExposeUtils, TaskContext, ml, mllib}
-import water.{H2O, Key}
-
-import scala.collection.immutable
+import water.H2O
 
 private[backend] class Writer(nodeDesc: NodeDesc,
                               metadata: WriterMetadata,
@@ -94,53 +89,22 @@ private[backend] class Writer(nodeDesc: NodeDesc,
 
 private[backend] object Writer {
 
-  type SparkJob[T] = (TaskContext, Iterator[T]) => (Int, Long)
-  type UploadPlan = immutable.Map[Int, NodeDesc]
+  type SparkJob = (TaskContext, Iterator[Row]) => (Int, Long)
+  type UploadPlan = Map[Int, NodeDesc]
 
-  /**
-   * Converts Spark DataFrame to H2O Frame
-   */
-  def convert(hc: H2OContext, df: DataFrame, frameIdOption: Option[String]): String = {
-    val flatDataFrame = flattenDataFrame(df)
-    val dfRdd = flatDataFrame.rdd
-    val frameId = frameIdOption.getOrElse("frame_rdd_" + dfRdd.id + Key.rand())
-
-    val elemMaxSizes = collectMaxElementSizes(flatDataFrame)
-    val vecIndices = collectVectorLikeTypes(flatDataFrame.schema).toArray
-    // Expands RDD's schema ( Arrays and Vectors)
-    val flatRddSchema = expandedSchema(flatDataFrame.schema, elemMaxSizes)
-    // Patch the flat schema based on information about types
-    val fnames = flatRddSchema.map(_.name).toArray
-    val maxVecSizes = vecIndices.map(elemMaxSizes(_))
-    val expectedTypes = determineExpectedTypes(flatDataFrame)
-
-    val conf = hc.getConf
-    H2OFrame.initializeFrame(conf, frameId, fnames)
-
-    val rdd = new H2OAwareRDD(hc.getH2ONodes(), dfRdd)
+  def convert(rdd: H2OAwareRDD[Row], colNames: Array[String], metadata: WriterMetadata): String = {
+    H2OFrame.initializeFrame(metadata.conf, metadata.frameId, colNames)
     val partitionSizes = getNonEmptyPartitionSizes(rdd)
     val nonEmptyPartitions = getNonEmptyPartitions(partitionSizes)
 
     val uploadPlan = scheduleUpload(nonEmptyPartitions.size, rdd)
-    val metadata = WriterMetadata(conf, frameId, expectedTypes, maxVecSizes)
-    val operation: SparkJob[Row] = perDataFramePartition(metadata, uploadPlan, nonEmptyPartitions, partitionSizes)
-    val rows = hc.sparkContext.runJob(rdd, operation, nonEmptyPartitions) // eager, not lazy, evaluation
+    val operation: SparkJob = perDataFramePartition(metadata, uploadPlan, nonEmptyPartitions, partitionSizes)
+    val rows = SparkSessionUtils.active.sparkContext.runJob(rdd, operation, nonEmptyPartitions)
     val res = new Array[Long](nonEmptyPartitions.size)
-    rows.foreach { case (cidx, nrows) => res(cidx) = nrows }
-    val types = SerdeUtils.expectedTypesToVecTypes(expectedTypes, maxVecSizes)
-    H2OFrame.finalizeFrame(conf, frameId, res, types)
-    frameId
-  }
-
-  private def determineExpectedTypes(flatDataFrame: DataFrame): Array[Byte] = {
-    val internalJavaClasses = flatDataFrame.schema.map { f =>
-      f.dataType match {
-        case n if n.isInstanceOf[DecimalType] & n.getClass.getSuperclass != classOf[DecimalType] => Double.javaClass
-        case v if ExposeUtils.isAnyVectorUDT(v) => classOf[Vector]
-        case dt: DataType => ReflectionUtils.supportedTypeOf(dt).javaClass
-      }
-    }.toArray
-    expectedTypesFromClasses(internalJavaClasses)
+    rows.foreach { case (chunkIdx, numRows) => res(chunkIdx) = numRows }
+    val types = SerdeUtils.expectedTypesToVecTypes(metadata.expectedTypes, metadata.maxVectorSizes)
+    H2OFrame.finalizeFrame(metadata.conf, metadata.frameId, res, types)
+    metadata.frameId
   }
 
   private def perDataFramePartition(metadata: WriterMetadata,

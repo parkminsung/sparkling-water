@@ -17,13 +17,20 @@
 
 package ai.h2o.sparkling.backend.converters
 
-import ai.h2o.sparkling.backend.{H2OFrameRelation, Writer}
+import ai.h2o.sparkling.backend.utils.ConversionUtils.expectedTypesFromClasses
+import ai.h2o.sparkling.backend.{H2OAwareRDD, H2OFrameRelation, Writer, WriterMetadata}
+import ai.h2o.sparkling.ml.utils.SchemaUtils.{collectMaxElementSizes, collectVectorLikeTypes, expandedSchema, flattenDataFrame}
 import ai.h2o.sparkling.utils.SparkSessionUtils
+import org.apache.spark.ExposeUtils
 import org.apache.spark.expose.Logging
 import org.apache.spark.h2o.H2OContext
+import org.apache.spark.h2o.utils.ReflectionUtils
+import org.apache.spark.h2o.utils.SupportedTypes.Double
+import org.apache.spark.ml.linalg.Vector
 import org.apache.spark.sql.DataFrame
-import water.DKV
+import org.apache.spark.sql.types.{DataType, DecimalType}
 import water.fvec.{Frame, H2OFrame}
+import water.{DKV, Key}
 
 object SparkDataFrameConverter extends Logging {
 
@@ -64,7 +71,29 @@ object SparkDataFrameConverter extends Logging {
   }
 
   def toH2OFrameKeyString(hc: H2OContext, dataFrame: DataFrame, frameKeyName: Option[String]): String = {
-    Writer.convert(hc, dataFrame, frameKeyName)
+    val flatDataFrame = flattenDataFrame(dataFrame)
+
+    val elemMaxSizes = collectMaxElementSizes(flatDataFrame)
+    val vecIndices = collectVectorLikeTypes(flatDataFrame.schema).toArray
+    val flattenSchema = expandedSchema(flatDataFrame.schema, elemMaxSizes)
+    val colNames = flattenSchema.map(_.name).toArray
+    val maxVecSizes = vecIndices.map(elemMaxSizes(_))
+    val expectedTypes = determineExpectedTypes(flatDataFrame)
+
+    val rdd = flatDataFrame.rdd
+    val uniqueFrameId = frameKeyName.getOrElse("frame_rdd_" + rdd.id + Key.rand())
+    val metadata = WriterMetadata(hc.getConf, uniqueFrameId, expectedTypes, maxVecSizes)
+    Writer.convert(new H2OAwareRDD(hc.getH2ONodes(), rdd), colNames, metadata)
   }
 
+  private def determineExpectedTypes(flatDataFrame: DataFrame): Array[Byte] = {
+    val internalJavaClasses = flatDataFrame.schema.map { f =>
+      f.dataType match {
+        case n if n.isInstanceOf[DecimalType] & n.getClass.getSuperclass != classOf[DecimalType] => Double.javaClass
+        case v if ExposeUtils.isAnyVectorUDT(v) => classOf[Vector]
+        case dt: DataType => ReflectionUtils.supportedTypeOf(dt).javaClass
+      }
+    }.toArray
+    expectedTypesFromClasses(internalJavaClasses)
+  }
 }
