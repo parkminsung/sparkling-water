@@ -65,7 +65,9 @@ private[backend] class H2ODataFrame(val frame: H2OFrame, val requiredColumns: Ar
       override val reader: Reader = new Reader(frameId, split.index, chnk.numberOfRows,
         chnk.location, expectedTypes, selectedColumnIndices, h2oConf)
 
-      private lazy val columnIndicesWithTypes: Array[(Int, SimpleType[_])] = selectedColumnIndices map (i => (i, bySparkType(types(i))))
+      private lazy val columnIndicesWithTypes: Array[(Int, SimpleType[_])] = {
+        selectedColumnIndices.map(i => (i, bySparkType(types(i))))
+      }
 
       /*a sequence of value providers, per column*/
       private lazy val columnValueProviders: Array[() => Option[Any]] = {
