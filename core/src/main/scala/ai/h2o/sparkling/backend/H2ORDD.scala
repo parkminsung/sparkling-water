@@ -82,7 +82,7 @@ private[backend] class H2ORDD[A <: Product : TypeTag : ClassTag] private(val fra
     }
   }
 
-  private def columnReaders(rcc: Reader) =  {
+  private def columnReaders(rcc: Reader) = {
     val readerMapByName = (rcc.OptionReaders ++ rcc.SimpleReaders).map {
       case (supportedType, reader) => supportedType.name -> reader
     }

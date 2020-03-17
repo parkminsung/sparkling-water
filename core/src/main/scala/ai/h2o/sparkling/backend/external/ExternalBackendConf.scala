@@ -22,7 +22,7 @@ import ai.h2o.sparkling.utils.Compression
 import org.apache.spark.expose.Logging
 import org.apache.spark.h2o.H2OConf
 
-import collection.JavaConverters._
+import scala.collection.JavaConverters._
 
 /**
  * External backend configuration

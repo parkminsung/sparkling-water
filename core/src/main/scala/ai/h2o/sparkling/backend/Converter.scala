@@ -41,8 +41,8 @@ private[backend] object Converter {
   /**
    * Converts Spark DataFrame to H2O Frame using specified conversion function
    *
-   * @param hc            H2O context
-   * @param df            Data frame to convert
+   * @param hc H2O context
+   * @param df Data frame to convert
    * @return H2OFrame Key
    */
   def convert[T: ClassTag : TypeTag](hc: H2OContext, df: DataFrame, frameKeyName: Option[String]): String = {
@@ -179,7 +179,7 @@ private[backend] object Converter {
     val hc = H2OContext.ensure("H2OContext needs to be running")
     val nodes = hc.getH2ONodes()
     if (hc.getConf.runsInInternalClusterMode) {
-      rdd.mapPartitionsWithIndex { case(idx, _) =>
+      rdd.mapPartitionsWithIndex { case (idx, _) =>
         Iterator.single((idx, NodeDesc(H2O.SELF)))
       }.collect().toMap
     } else {

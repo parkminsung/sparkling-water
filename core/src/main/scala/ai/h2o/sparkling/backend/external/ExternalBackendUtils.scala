@@ -21,8 +21,8 @@ import java.net.{InetAddress, NetworkInterface}
 
 import ai.h2o.sparkling.backend.utils.SharedBackendUtils
 import org.apache.spark.SparkEnv
-import org.apache.spark.h2o.{H2OConf, H2OContext}
 import org.apache.spark.h2o.utils.NodeDesc
+import org.apache.spark.h2o.{H2OConf, H2OContext}
 import water.api.RestAPIManager
 import water.init.{HostnameGuesser, NetworkBridge}
 import water.{H2O, H2OStarter, Paxos}

@@ -59,4 +59,5 @@ private[backend] trait H2OSparkEntity {
 
     override def hasNext: Boolean = reader.hasNext
   }
+
 }

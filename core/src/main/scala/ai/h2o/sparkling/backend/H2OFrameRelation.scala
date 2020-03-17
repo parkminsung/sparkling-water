@@ -29,7 +29,7 @@ import org.apache.spark.sql.{Row, SQLContext}
  * H2O relation implementing column filter operation.
  */
 case class H2OFrameRelation(frame: H2OFrame, copyMetadata: Boolean)
-                                            (@transient val sqlContext: SQLContext)
+                           (@transient val sqlContext: SQLContext)
   extends BaseRelation with TableScan with PrunedScan /* with PrunedFilterScan */ {
 
   lazy val h2oContext = H2OContext.ensure("H2OContext has to be started in order to do " +
