@@ -24,24 +24,13 @@ import org.apache.spark.Partition
  * Contains functions that are shared between H2O DataFrames and RDDs.
  */
 private[backend] trait H2OSparkEntity {
-  /** Underlying H2O Frame */
   val frame: H2OFrame
-
-  /** Cache frame key to get H2OFrame from the H2O backend */
-  val frameKeyName: String = frame.frameId
-
-  /** Number of chunks per a vector */
-  val numChunks: Int = frame.chunks.length
-
-  /** Create new types list which describes expected types in a way external H2O backend can use it. This list
-   * contains types in a format same for H2ODataFrame and H2ORDD */
+  val selectedColumnIndices: Array[Int]
   val expectedTypes: Array[Byte]
 
-  /** Chunk locations helps us to determine the node which really has the data we needs. */
+  val frameKeyName: String = frame.frameId
+  val numChunks: Int = frame.chunks.length
   val chksLocation: Option[Array[H2OChunk]] = Some(frame.chunks)
-
-  /** Selected column indices */
-  val selectedColumnIndices: Array[Int]
 
   protected def getPartitions: Array[Partition] = {
     val res = new Array[Partition](numChunks)
@@ -51,7 +40,7 @@ private[backend] trait H2OSparkEntity {
     res
   }
 
-  /** Base implementation for iterator over rows stored in chunks for given partition. */
+  /** Base implementation for iterator over rows stored in H2O chunks for given partition. */
   trait H2OChunkIterator[+A] extends Iterator[A] {
 
     val reader: Reader
