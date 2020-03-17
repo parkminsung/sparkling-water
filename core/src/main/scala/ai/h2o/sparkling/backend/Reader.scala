@@ -20,26 +20,29 @@ package ai.h2o.sparkling.backend
 import ai.h2o.sparkling.extensions.serde.ChunkAutoBufferReader
 import ai.h2o.sparkling.frame.H2OChunk
 import org.apache.spark.h2o.H2OConf
-import org.apache.spark.h2o.utils.ReflectionUtils.NameOfType
-import org.apache.spark.h2o.utils.SupportedTypes.{Boolean, Byte, Date, Double, Float, Integer, Long, OptionalType, Short, SimpleType, String, Timestamp, UTF8, byBaseType}
+import org.apache.spark.h2o.utils.SupportedTypes._
 import org.apache.spark.h2o.utils.{NodeDesc, SupportedTypes}
 import org.apache.spark.unsafe.types.UTF8String
 
 
-private[backend] class Reader(val keyName: String, val chunkIdx: Int, val numRows: Int,
-                              val nodeDesc: NodeDesc, expectedTypes: Array[Byte], selectedColumnIndices: Array[Int],
-                              val conf: H2OConf) {
+private[backend] class Reader(private val keyName: String,
+                              private val chunkIdx: Int,
+                              private val numRows: Int,
+                              private val nodeDesc: NodeDesc,
+                              expectedTypes: Array[Byte],
+                              selectedColumnIndices: Array[Int],
+                              private val conf: H2OConf) {
   /** Current row index */
-  var rowIdx: Int = 0
+  private var rowIdx: Int = 0
 
   private val reader = new ChunkAutoBufferReader(
     H2OChunk.getChunkAsInputStream(nodeDesc, conf, keyName, numRows, chunkIdx, expectedTypes, selectedColumnIndices))
 
-  def returnOption[T](read: ChunkAutoBufferReader => T)(columnNum: Int): Option[T] = {
+  private def returnOption[T](read: ChunkAutoBufferReader => T)(columnNum: Int): Option[T] = {
     Option(read(reader)).filter(_ => !reader.isLastNA)
   }
 
-  def returnSimple[T](ifMissing: String => T, read: ChunkAutoBufferReader => T)(columnNum: Int): T = {
+  private def returnSimple[T](ifMissing: String => T, read: ChunkAutoBufferReader => T)(columnNum: Int): T = {
     val value = read(reader)
     if (reader.isLastNA) ifMissing(s"Row $rowIdx column $columnNum") else value
   }
@@ -60,6 +63,10 @@ private[backend] class Reader(val keyName: String, val chunkIdx: Int, val numRow
 
   protected def string(source: ChunkAutoBufferReader) = source.readString()
 
+  protected def utfString(source: ChunkAutoBufferReader) = UTF8String.fromString(string(source))
+
+  protected def timestamp(source: ChunkAutoBufferReader): Long = longAt(source) * 1000
+
   def hasNext: Boolean = {
     val isNext = rowIdx < numRows
     if (!isNext) {
@@ -68,30 +75,7 @@ private[backend] class Reader(val keyName: String, val chunkIdx: Int, val numRow
     isNext
   }
 
-  def increaseRowIdx() = rowIdx += 1
-
-  type OptionReader = Int => Option[Any]
-
-  type Reader = Int => Any
-
-  protected def utfString(source: ChunkAutoBufferReader) = UTF8String.fromString(string(source))
-
-  protected def timestamp(source: ChunkAutoBufferReader): Long = longAt(source) * 1000
-
-  /**
-   * For a given array of source column indexes and required data types,
-   * produces an array of value providers.
-   *
-   * @param columnIndexesWithTypes lists which columns we need, and what are the required types
-   * @return an array of value providers. Each provider gives the current column value
-   */
-  def columnValueProviders(columnIndexesWithTypes: Array[(Int, SimpleType[_])]): Array[() => Option[Any]] = {
-    for {
-      (columnIndex, supportedType) <- columnIndexesWithTypes
-      reader = OptionReaders(byBaseType(supportedType))
-      provider = () => reader.apply(columnIndex)
-    } yield provider
-  }
+  def increaseRowIdx(): Unit = rowIdx += 1
 
   /**
    * This map registers for each type corresponding extractor
@@ -102,7 +86,7 @@ private[backend] class Reader(val keyName: String, val chunkIdx: Int, val numRow
    *
    * A map from type name to option reader
    */
-  protected lazy val ExtractorsTable: Map[SimpleType[_], ChunkAutoBufferReader => _] = Map(
+  private lazy val ExtractorsTable: Map[SimpleType[_], ChunkAutoBufferReader => _] = Map(
     Boolean -> booleanAt _,
     Byte -> byteAt _,
     Short -> shortAt _,
@@ -116,23 +100,25 @@ private[backend] class Reader(val keyName: String, val chunkIdx: Int, val numRow
     Date -> timestamp _
   )
 
-  private lazy val OptionReadersMap: Map[OptionalType[_], OptionReader] =
-    ExtractorsTable map {
+  private type OptionReader = Int => Option[Any]
+
+  private type Reader = Int => Any
+
+  private lazy val OptionReadersMap: Map[OptionalType[_], OptionReader] = {
+    ExtractorsTable.map {
       case (t, reader) => SupportedTypes.byBaseType(t) -> returnOption(reader) _
-    } toMap
+    }.toMap
+  }
 
-  private lazy val SimpleReadersMap: Map[SimpleType[_], Reader] =
-    ExtractorsTable map {
+  private lazy val SimpleReadersMap: Map[SimpleType[_], Reader] = {
+    ExtractorsTable.map {
       case (t, reader) => t -> returnSimple(t.ifMissing, reader) _
-    } toMap
+    }.toMap
+  }
 
-  private lazy val OptionReaders: Map[OptionalType[_], OptionReader] = OptionReadersMap withDefault
-    (t => throw new scala.IllegalArgumentException(s"Type $t conversion is not supported in Sparkling Water"))
+  lazy val OptionReaders: Map[OptionalType[_], OptionReader] = OptionReadersMap.withDefault(
+    t => throw new scala.IllegalArgumentException(s"Type $t conversion is not supported in Sparkling Water"))
 
-  private lazy val SimpleReaders: Map[SimpleType[_], Reader] = SimpleReadersMap withDefault
-    (t => throw new scala.IllegalArgumentException(s"Type $t conversion is not supported in Sparkling Water"))
-
-  lazy val readerMapByName: Map[NameOfType, Reader] = (OptionReaders ++ SimpleReaders) map {
-    case (supportedType, reader) => supportedType.name -> reader
-  } toMap
+  lazy val SimpleReaders: Map[SimpleType[_], Reader] = SimpleReadersMap.withDefault(
+    t => throw new scala.IllegalArgumentException(s"Type $t conversion is not supported in Sparkling Water"))
 }

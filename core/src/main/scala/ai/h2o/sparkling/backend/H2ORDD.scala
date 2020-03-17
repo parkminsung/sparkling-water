@@ -82,7 +82,12 @@ private[backend] class H2ORDD[A <: Product : TypeTag : ClassTag] private(val fra
     }
   }
 
-  private def columnReaders(rcc: Reader) = productType.memberTypeNames map rcc.readerMapByName
+  private def columnReaders(rcc: Reader) =  {
+    val readerMapByName = (rcc.OptionReaders ++ rcc.SimpleReaders).map {
+      case (supportedType, reader) => supportedType.name -> reader
+    }
+    productType.memberTypeNames.map(name => readerMapByName(name))
+  }
 
   private def opt[X](op: => Any): Option[X] = try {
     Option(op.asInstanceOf[X])
@@ -157,7 +162,7 @@ private[backend] class H2ORDD[A <: Product : TypeTag : ClassTag] private(val fra
         cachedRow = None
         row
       } else {
-        throw new NoSuchElementException(s"No more elements in this iterator: found $rowsRead  out of ${reader.numRows}")
+        throw new NoSuchElementException(s"No more elements in this iterator!")
       }
     }
 

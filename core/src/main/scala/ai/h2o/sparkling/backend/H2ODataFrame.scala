@@ -20,7 +20,7 @@ package ai.h2o.sparkling.backend
 import ai.h2o.sparkling.frame.H2OFrame
 import org.apache.spark.h2o.H2OContext
 import org.apache.spark.h2o.utils.ReflectionUtils
-import org.apache.spark.h2o.utils.SupportedTypes.{SimpleType, SupportedType, VecType, bySparkType}
+import org.apache.spark.h2o.utils.SupportedTypes.{SimpleType, SupportedType, VecType, byBaseType, bySparkType}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.{Partition, TaskContext}
@@ -67,7 +67,13 @@ private[backend] class H2ODataFrame(val frame: H2OFrame, val requiredColumns: Ar
       private lazy val columnIndicesWithTypes: Array[(Int, SimpleType[_])] = selectedColumnIndices map (i => (i, bySparkType(types(i))))
 
       /*a sequence of value providers, per column*/
-      private lazy val columnValueProviders: Array[() => Option[Any]] = reader.columnValueProviders(columnIndicesWithTypes)
+      private lazy val columnValueProviders: Array[() => Option[Any]] = {
+        for {
+          (columnIndex, supportedType) <- columnIndicesWithTypes
+          valueReader = reader.OptionReaders(byBaseType(supportedType))
+          provider = () => valueReader.apply(columnIndex)
+        } yield provider
+      }
 
       def readOptionalData: Seq[Option[Any]] = columnValueProviders map (_ ())
 

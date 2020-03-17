@@ -20,10 +20,10 @@ package org.apache.spark.h2o
 import java.util.TimeZone
 import java.util.concurrent.atomic.AtomicReference
 
-import ai.h2o.sparkling.backend.{H2OClusterNotReachableException, SharedBackendConf, SparklingBackend}
 import ai.h2o.sparkling.backend.converters.{DatasetConverter, SparkDataFrameConverter, SupportedRDD, SupportedRDDConverter}
 import ai.h2o.sparkling.backend.external._
-import ai.h2o.sparkling.backend.utils.{AzureDatabricksUtils, ProxyStarter, RestApiException, RestApiUtils}
+import ai.h2o.sparkling.backend.utils._
+import ai.h2o.sparkling.backend.{H2OClusterNotReachableException, SharedBackendConf, SparklingBackend}
 import ai.h2o.sparkling.macros.DeprecatedMethod
 import ai.h2o.sparkling.utils.SparkSessionUtils
 import org.apache.spark._
@@ -64,7 +64,7 @@ import scala.util.control.NoStackTrace
  *
  * @param conf         H2O configuration
  */
-class H2OContext private(private val conf: H2OConf) extends Logging with H2OContextUtils {
+class H2OContext private(private val conf: H2OConf) extends H2OContextExtensions {
   self =>
   val sparkSession = SparkSessionUtils.active
   val sparkContext = sparkSession.sparkContext
@@ -376,7 +376,7 @@ class H2OContext private(private val conf: H2OConf) extends Logging with H2OCont
   }
 
   /** Open H2O Flow running in this client. */
-  def openFlow(): Unit = openURI(sparkContext, flowURL())
+  def openFlow(): Unit = openURI(flowURL())
 
   override def toString: String = {
     val basic =
