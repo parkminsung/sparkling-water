@@ -49,7 +49,7 @@ trait SharedBackendUtils extends Logging with Serializable {
    *
    * @param conf H2O Configuration to check
    * @return checked and updated configuration
-   **/
+   * */
   def checkAndUpdateConf(conf: H2OConf): H2OConf = {
     // Note: updating Spark Conf is useless at this time in more of the cases since SparkContext is already running
     if (conf.h2oClientLogDir.isEmpty) {
@@ -184,18 +184,6 @@ trait SharedBackendUtils extends Logging with Serializable {
 
   def getExtraHttpHeaderArgs(conf: H2OConf): Seq[String] = {
     conf.flowExtraHttpHeaders.map(parseStringToHttpHeaderArgs).getOrElse(Seq.empty)
-  }
-
-  /**
-   * Get common arguments for H2O client.
-   *
-   * @return array of H2O client arguments.
-   */
-  def getH2OClientArgs(conf: H2OConf): Seq[String] = {
-    new ArgumentBuilder()
-      .add(getH2OWorkerAsClientArgs(conf))
-      .add("-client")
-      .buildArgs()
   }
 
   def toH2OArgs(h2oArgs: Seq[String], executors: Array[NodeDesc] = Array()): Array[String] = {

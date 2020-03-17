@@ -30,7 +30,7 @@ import org.spark_project.jetty.util.thread.{QueuedThreadPool, ScheduledExecutorS
 
 object ProxyStarter extends Logging {
   def startFlowProxy(conf: H2OConf): URI = {
-    var port = conf.clientBasePort
+    var port = conf.clientBasePort + 1
     while (true) {
       try {
         port = findNextFreeFlowPort(conf.clientWebPort, port + 1)

@@ -28,6 +28,7 @@ import org.apache.spark.rpc.RpcEndpointRef
 import org.apache.spark.scheduler.{SparkListener, SparkListenerExecutorAdded}
 import org.apache.spark.util.RpcUtils
 import org.apache.spark.{SparkContext, SparkEnv}
+import water.api.RestAPIManager
 import water.util.Log
 import water.{H2O, H2OStarter}
 
@@ -39,7 +40,7 @@ class InternalH2OBackend(@transient val hc: H2OContext) extends SparklingBackend
   override def startH2OCluster(conf: H2OConf): Unit = {
     logInfo("Starting the H2O cluster inside Spark.")
     if (hc.sparkContext.isLocal) {
-      startH2OWorkerAsClient(conf)
+      startSingleH2OWorker(hc, conf)
     } else {
       val endpoints = registerEndpoints(hc)
       val workerNodes = startH2OWorkers(endpoints, conf)
@@ -97,11 +98,13 @@ object InternalH2OBackend extends InternalBackendUtils {
    * Used in local mode where we start directly one H2O worker node
    * without additional client
    */
-  private def startH2OWorkerAsClient(conf: H2OConf): NodeDesc = {
+  private def startSingleH2OWorker(hc: H2OContext, conf: H2OConf): NodeDesc = {
     val args = getH2OWorkerAsClientArgs(conf)
     val launcherArgs = toH2OArgs(args)
 
     H2OStarter.start(launcherArgs, false)
+    RestAPIManager(hc).registerAll()
+    H2O.startServingRestApi()
     NodeDesc(SparkEnv.get.executorId, H2O.SELF_ADDRESS.getHostAddress, H2O.API_PORT)
   }
 

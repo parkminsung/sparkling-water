@@ -17,14 +17,10 @@
 
 package ai.h2o.sparkling.backend.utils
 
-import java.net.{InetAddress, NetworkInterface}
-
-import ai.h2o.sparkling.backend.external.ExternalH2OBackend
 import org.apache.spark.SparkEnv
 import org.apache.spark.h2o.utils.NodeDesc
 import org.apache.spark.h2o.{H2OConf, H2OContext}
 import water.api.RestAPIManager
-import water.init.{HostnameGuesser, NetworkBridge}
 import water.{H2O, H2OStarter, Paxos}
 
 /**
@@ -33,54 +29,39 @@ import water.{H2O, H2OStarter, Paxos}
  */
 object H2OClientUtils extends SharedBackendUtils {
 
-  def startH2OClient(hc: H2OContext, conf: H2OConf, nodes: Array[NodeDesc]): NodeDesc = {
-    setClientIp(conf)
-    val args = getH2OClientArgs(conf).toArray
-    val launcherArgs = toH2OArgs(args, nodes)
-    logDebug(s"Arguments used for launching the H2O client node: ${launcherArgs.mkString(" ")}")
-
-    H2OStarter.start(launcherArgs, false)
-
-    if (conf.isAutoClusterStartUsed) {
-      val expectedSize = conf.clusterSize.get.toInt
-      val discoveredSize = waitForCloudSize(expectedSize, conf.cloudTimeout)
-      if (discoveredSize < expectedSize) {
-        logError(s"Exiting! H2O cluster was of size $discoveredSize but expected was $expectedSize!!")
-        hc.stop(stopSparkContext = true)
-        throw new RuntimeException("Cloud size " + discoveredSize + " under " + expectedSize);
-      }
-    }
-
-    RestAPIManager(hc).registerAll()
-    H2O.startServingRestApi()
-    NodeDesc(SparkEnv.get.executorId, H2O.SELF_ADDRESS.getHostAddress, H2O.API_PORT)
+  /**
+   * Get common arguments for H2O client.
+   *
+   * @return array of H2O client arguments.
+   */
+  private def getH2OClientArgs(conf: H2OConf): Seq[String] = {
+    new ArgumentBuilder()
+      .add(getH2OWorkerAsClientArgs(conf))
+      .add("-client")
+      .buildArgs()
   }
 
-  private def identifyClientIp(remoteAddress: String): Option[String] = {
-    val interfaces = NetworkInterface.getNetworkInterfaces
-    while (interfaces.hasMoreElements) {
-      val interface = interfaces.nextElement()
-      import scala.collection.JavaConverters._
-      interface.getInterfaceAddresses.asScala.foreach { address =>
-        val ip = address.getAddress.getHostAddress + "/" + address.getNetworkPrefixLength
-        val cidr = HostnameGuesser.CIDRBlock.parse(ip)
-        if (cidr != null && NetworkBridge.isInetAddressOnNetwork(cidr, InetAddress.getByName(remoteAddress))) {
-          return Some(address.getAddress.getHostAddress)
+  def startH2OClient(hc: H2OContext, conf: H2OConf, nodes: Array[NodeDesc]): NodeDesc = {
+    if (!(conf.runsInInternalClusterMode && hc.sparkContext.isLocal)) {
+      val args = getH2OClientArgs(conf).toArray
+      val launcherArgs = toH2OArgs(args, nodes)
+      logDebug(s"Arguments used for launching the H2O client node: ${launcherArgs.mkString(" ")}")
+
+      H2OStarter.start(launcherArgs, false)
+
+      if (conf.runsInInternalClusterMode || conf.isAutoClusterStartUsed) {
+        val expectedSize = conf.clusterSize.get.toInt
+        val discoveredSize = waitForCloudSize(expectedSize, conf.cloudTimeout)
+        if (discoveredSize < expectedSize) {
+          logError(s"Exiting! H2O cluster was of size $discoveredSize but expected was $expectedSize!!")
+          hc.stop(stopSparkContext = true)
+          throw new RuntimeException("Cloud size " + discoveredSize + " under " + expectedSize);
         }
       }
+      RestAPIManager(hc).registerAll()
+      H2O.startServingRestApi()
     }
-    None
-  }
-
-  private def setClientIp(conf: H2OConf): Unit = {
-    val clientIp = identifyClientIp(conf.h2oClusterHost.get)
-    if (clientIp.isDefined && conf.clientIp.isEmpty && conf.clientNetworkMask.isEmpty) {
-      conf.setClientIp(clientIp.get)
-    }
-
-    if (conf.clientIp.isEmpty) {
-      conf.setClientIp(ExternalH2OBackend.getHostname(SparkEnv.get))
-    }
+    NodeDesc(SparkEnv.get.executorId, H2O.SELF_ADDRESS.getHostAddress, H2O.API_PORT)
   }
 
   private def waitForCloudSize(expectedSize: Int, timeoutInMilliseconds: Long): Int = {
