@@ -20,6 +20,7 @@ package ai.h2o.sparkling.backend.utils
 import java.io._
 import java.net.{HttpURLConnection, URI, URL}
 
+import ai.h2o.sparkling.backend.exceptions.{RestApiCommunicationException, RestApiException, RestApiNotReachableException, RestApiUnauthorisedException}
 import ai.h2o.sparkling.utils.FinalizingOutputStream
 import ai.h2o.sparkling.utils.ScalaUtils._
 import com.google.gson.{ExclusionStrategy, FieldAttributes, GsonBuilder}
@@ -271,13 +272,3 @@ trait RestCommunication extends Logging with RestEncodingUtils {
     }
   }
 }
-
-abstract class RestApiException(msg: String, cause: Throwable) extends Exception(msg, cause) {
-  def this(msg: String) = this(msg, null)
-}
-
-final class RestApiNotReachableException(msg: String, cause: Throwable) extends RestApiException(msg, cause)
-
-final class RestApiUnauthorisedException(msg: String) extends RestApiException(msg)
-
-final class RestApiCommunicationException(msg: String) extends RestApiException(msg)

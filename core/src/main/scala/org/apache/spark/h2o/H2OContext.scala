@@ -21,9 +21,10 @@ import java.util.TimeZone
 import java.util.concurrent.atomic.AtomicReference
 
 import ai.h2o.sparkling.backend.converters.{DatasetConverter, SparkDataFrameConverter, SupportedRDD, SupportedRDDConverter}
+import ai.h2o.sparkling.backend.exceptions.{H2OClusterNotReachableException, RestApiException}
 import ai.h2o.sparkling.backend.external._
 import ai.h2o.sparkling.backend.utils._
-import ai.h2o.sparkling.backend.{H2OClusterNotReachableException, SharedBackendConf, SparklingBackend}
+import ai.h2o.sparkling.backend.{SharedBackendConf, SparklingBackend}
 import ai.h2o.sparkling.macros.DeprecatedMethod
 import ai.h2o.sparkling.utils.SparkSessionUtils
 import org.apache.spark._

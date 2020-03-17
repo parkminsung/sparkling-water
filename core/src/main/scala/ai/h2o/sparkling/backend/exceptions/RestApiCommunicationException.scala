@@ -15,10 +15,6 @@
 * limitations under the License.
 */
 
-package ai.h2o.sparkling.backend
+package ai.h2o.sparkling.backend.exceptions
 
-import ai.h2o.sparkling.backend.utils.RestApiException
-
-class H2OClusterNotReachableException(msg: String, cause: Throwable) extends RestApiException(msg, cause) {
-  def this(msg: String) = this(msg, null)
-}
+final class RestApiCommunicationException(msg: String) extends RestApiException(msg)
