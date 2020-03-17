@@ -19,23 +19,23 @@ package ai.h2o.sparkling.backend.utils
 
 import java.io.File
 
-import org.apache.spark.h2o.H2OConf
+import org.apache.spark.h2o.H2OContext
 import water.api.ImportHiveTableHandler
 import water.api.ImportHiveTableHandler.HiveTableImporter
 import water.fvec.Frame
 
 trait H2OContextExtensions extends H2OContextUtils {
-
-  def downloadH2OLogs(destinationDir: String, logContainer: String, conf: H2OConf): String = {
+  _: H2OContext =>
+  def downloadH2OLogs(destinationDir: String, logContainer: String): String = {
     verifyLogContainer(logContainer)
-    val endpoint = RestApiUtils.getClusterEndpoint(conf)
+    val endpoint = RestApiUtils.getClusterEndpoint(getConf)
     val file = new File(destinationDir, s"${logFileName()}.${logContainer.toLowerCase}")
     val logEndpoint = s"/3/Logs/download/$logContainer"
     logContainer match {
       case "LOG" =>
-        downloadStringURLContent(endpoint, logEndpoint, conf, file)
+        downloadStringURLContent(endpoint, logEndpoint, getConf, file)
       case "ZIP" =>
-        downloadBinaryURLContent(endpoint, logEndpoint, conf, file)
+        downloadBinaryURLContent(endpoint, logEndpoint, getConf, file)
     }
     file.getAbsolutePath
   }
