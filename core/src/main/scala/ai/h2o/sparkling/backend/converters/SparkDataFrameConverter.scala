@@ -17,11 +17,11 @@
 
 package ai.h2o.sparkling.backend.converters
 
-import ai.h2o.sparkling.backend.{Converter, H2OFrameRelation}
+import ai.h2o.sparkling.backend.{H2OFrameRelation, Writer}
 import ai.h2o.sparkling.utils.SparkSessionUtils
 import org.apache.spark.expose.Logging
 import org.apache.spark.h2o.H2OContext
-import org.apache.spark.sql.{DataFrame, Row}
+import org.apache.spark.sql.DataFrame
 import water.DKV
 import water.fvec.{Frame, H2OFrame}
 
@@ -64,7 +64,7 @@ object SparkDataFrameConverter extends Logging {
   }
 
   def toH2OFrameKeyString(hc: H2OContext, dataFrame: DataFrame, frameKeyName: Option[String]): String = {
-    Converter.convert[Row](hc, dataFrame, frameKeyName)
+    Writer.convert(hc, dataFrame, frameKeyName)
   }
 
 }

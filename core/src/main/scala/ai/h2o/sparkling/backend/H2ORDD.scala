@@ -19,6 +19,7 @@ package ai.h2o.sparkling.backend
 
 import java.lang.reflect.Constructor
 
+import ai.h2o.sparkling.backend.utils.ConversionUtils
 import ai.h2o.sparkling.frame.H2OFrame
 import org.apache.spark.h2o.H2OContext
 import org.apache.spark.h2o.utils.ProductType
@@ -42,7 +43,7 @@ private[backend] class H2ORDD[A <: Product : TypeTag : ClassTag] private(val fra
                                                                         (@(transient@param @field) hc: H2OContext)
   extends H2OAwareEmptyRDD[A](hc.sparkContext, hc.getH2ONodes()) with H2OSparkEntity {
 
-  override val expectedTypes: Array[Byte] = Converter.prepareExpectedTypes(productType.memberClasses)
+  override val expectedTypes: Array[Byte] = ConversionUtils.H2OTypesFromClasses(productType.memberClasses)
 
   private val h2oConf = hc.getConf
 
