@@ -20,5 +20,5 @@ import org.apache.spark.h2o.H2OConf
 
 case class WriterMetadata(conf: H2OConf,
                           frameId: String,
-                          H2OTypes: Array[Byte],
+                          expectedTypes: Array[Byte],
                           maxVectorSizes: Array[Int])

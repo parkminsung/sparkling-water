@@ -19,9 +19,10 @@ package ai.h2o.sparkling.backend
 
 import java.io.Closeable
 
-import ai.h2o.sparkling.backend.utils.ConversionUtils.H2OTypesFromClasses
+import ai.h2o.sparkling.backend.utils.ConversionUtils.expectedTypesFromClasses
 import ai.h2o.sparkling.extensions.serde.{ChunkAutoBufferWriter, SerdeUtils}
 import ai.h2o.sparkling.frame.{H2OChunk, H2OFrame}
+import ai.h2o.sparkling.ml.utils.SchemaUtils._
 import ai.h2o.sparkling.utils.ScalaUtils.withResource
 import org.apache.spark.h2o.utils.SupportedTypes.Double
 import org.apache.spark.h2o.utils.{NodeDesc, ReflectionUtils}
@@ -44,7 +45,7 @@ private[backend] class Writer(nodeDesc: NodeDesc,
     metadata.frameId,
     numRows,
     chunkId,
-    metadata.H2OTypes,
+    metadata.expectedTypes,
     metadata.maxVectorSizes)
 
   private val chunkWriter = new ChunkAutoBufferWriter(outputStream)
@@ -71,7 +72,7 @@ private[backend] class Writer(nodeDesc: NodeDesc,
 
   def put(data: String): Unit = chunkWriter.writeString(data)
 
-  def putNA(sparkIdx: Int): Unit = chunkWriter.writeNA(metadata.H2OTypes(sparkIdx))
+  def putNA(sparkIdx: Int): Unit = chunkWriter.writeNA(metadata.expectedTypes(sparkIdx))
 
   def putSparseVector(vector: ml.linalg.SparseVector): Unit = chunkWriter.writeSparseVector(vector.indices, vector.values)
 
@@ -91,24 +92,18 @@ private[backend] class Writer(nodeDesc: NodeDesc,
   def close(): Unit = chunkWriter.close()
 }
 
-object Writer {
+private[backend] object Writer {
 
   type SparkJob[T] = (TaskContext, Iterator[T]) => (Int, Long)
   type UploadPlan = immutable.Map[Int, NodeDesc]
 
   /**
-   * Converts Spark DataFrame to H2O Frame using specified conversion function
-   *
-   * @param hc H2O context
-   * @param df Data frame to convert
-   * @return H2OFrame Key
+   * Converts Spark DataFrame to H2O Frame
    */
-  def convert(hc: H2OContext, df: DataFrame, frameKeyName: Option[String]): String = {
-    import ai.h2o.sparkling.ml.utils.SchemaUtils._
-
+  def convert(hc: H2OContext, df: DataFrame, frameIdOption: Option[String]): String = {
     val flatDataFrame = flattenDataFrame(df)
     val dfRdd = flatDataFrame.rdd
-    val keyName = frameKeyName.getOrElse("frame_rdd_" + dfRdd.id + Key.rand())
+    val frameId = frameIdOption.getOrElse("frame_rdd_" + dfRdd.id + Key.rand())
 
     val elemMaxSizes = collectMaxElementSizes(flatDataFrame)
     val vecIndices = collectVectorLikeTypes(flatDataFrame.schema).toArray
@@ -120,22 +115,21 @@ object Writer {
     val expectedTypes = determineExpectedTypes(flatDataFrame)
 
     val conf = hc.getConf
-    H2OFrame.initializeFrame(conf, keyName, fnames)
+    H2OFrame.initializeFrame(conf, frameId, fnames)
 
     val rdd = new H2OAwareRDD(hc.getH2ONodes(), dfRdd)
     val partitionSizes = getNonEmptyPartitionSizes(rdd)
     val nonEmptyPartitions = getNonEmptyPartitions(partitionSizes)
 
     val uploadPlan = scheduleUpload(nonEmptyPartitions.size, rdd)
-    val metadata = WriterMetadata(conf, keyName, expectedTypes, maxVecSizes)
+    val metadata = WriterMetadata(conf, frameId, expectedTypes, maxVecSizes)
     val operation: SparkJob[Row] = perDataFramePartition(metadata, uploadPlan, nonEmptyPartitions, partitionSizes)
     val rows = hc.sparkContext.runJob(rdd, operation, nonEmptyPartitions) // eager, not lazy, evaluation
     val res = new Array[Long](nonEmptyPartitions.size)
     rows.foreach { case (cidx, nrows) => res(cidx) = nrows }
-    // get the vector types from expected types
     val types = SerdeUtils.expectedTypesToVecTypes(expectedTypes, maxVecSizes)
-    H2OFrame.finalizeFrame(conf, keyName, res, types)
-    keyName
+    H2OFrame.finalizeFrame(conf, frameId, res, types)
+    frameId
   }
 
   private def determineExpectedTypes(flatDataFrame: DataFrame): Array[Byte] = {
@@ -146,7 +140,7 @@ object Writer {
         case dt: DataType => ReflectionUtils.supportedTypeOf(dt).javaClass
       }
     }.toArray
-    H2OTypesFromClasses(internalJavaClasses)
+    expectedTypesFromClasses(internalJavaClasses)
   }
 
   private def perDataFramePartition(metadata: WriterMetadata,

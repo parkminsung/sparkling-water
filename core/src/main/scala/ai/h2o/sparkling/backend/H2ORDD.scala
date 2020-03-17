@@ -43,7 +43,7 @@ private[backend] class H2ORDD[A <: Product : TypeTag : ClassTag] private(val fra
                                                                         (@(transient@param @field) hc: H2OContext)
   extends H2OAwareEmptyRDD[A](hc.sparkContext, hc.getH2ONodes()) with H2OSparkEntity {
 
-  override val expectedTypes: Array[Byte] = ConversionUtils.H2OTypesFromClasses(productType.memberClasses)
+  override val expectedTypes: Array[Byte] = ConversionUtils.expectedTypesFromClasses(productType.memberClasses)
 
   private val h2oConf = hc.getConf
 

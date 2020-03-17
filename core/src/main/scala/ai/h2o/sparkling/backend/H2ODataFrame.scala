@@ -56,7 +56,7 @@ private[backend] class H2ODataFrame(val frame: H2OFrame, val requiredColumns: Ar
   override val expectedTypes: Array[VecType] = {
     // prepare expected type selected columns in the same order as are selected columns
     val javaClasses = selectedColumnIndices.map(indexToSupportedType(_).javaClass)
-    ConversionUtils.H2OTypesFromClasses(javaClasses)
+    ConversionUtils.expectedTypesFromClasses(javaClasses)
   }
 
   override def compute(split: Partition, context: TaskContext): Iterator[InternalRow] = {

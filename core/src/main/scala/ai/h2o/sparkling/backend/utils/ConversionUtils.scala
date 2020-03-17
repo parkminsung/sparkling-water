@@ -21,7 +21,7 @@ import ai.h2o.sparkling.extensions.serde.ChunkSerdeConstants
 
 private[backend] object ConversionUtils {
 
-  private[backend] def H2OTypesFromClasses(classes: Array[Class[_]]): Array[Byte] = {
+  private[backend] def expectedTypesFromClasses(classes: Array[Class[_]]): Array[Byte] = {
     classes.map { clazz =>
       if (clazz == classOf[java.lang.Boolean]) {
         ChunkSerdeConstants.EXPECTED_BOOL
