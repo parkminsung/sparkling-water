@@ -47,8 +47,8 @@ class InternalH2OBackend(@transient val hc: H2OContext) extends SparklingBackend
       distributeFlatFile(endpoints, conf, workerNodes)
       tearDownEndpoints(endpoints)
       registerNewExecutorListener(hc)
+      conf.set(ExternalBackendConf.PROP_EXTERNAL_CLUSTER_REPRESENTATIVE._1, workerNodes.head.ipPort())
     }
-    conf.set(ExternalBackendConf.PROP_EXTERNAL_CLUSTER_REPRESENTATIVE._1, H2O.CLOUD.leader().getIpPortString)
   }
 
   override def epilog: String = ""
@@ -105,6 +105,7 @@ object InternalH2OBackend extends InternalBackendUtils {
     H2OStarter.start(launcherArgs, false)
     RestAPIManager(hc).registerAll()
     H2O.startServingRestApi()
+    conf.set(ExternalBackendConf.PROP_EXTERNAL_CLUSTER_REPRESENTATIVE._1, H2O.SELF.getIpPortString)
     NodeDesc(SparkEnv.get.executorId, H2O.SELF_ADDRESS.getHostAddress, H2O.API_PORT)
   }
 

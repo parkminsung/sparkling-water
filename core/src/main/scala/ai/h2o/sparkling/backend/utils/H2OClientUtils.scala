@@ -50,7 +50,7 @@ object H2OClientUtils extends SharedBackendUtils {
       H2OStarter.start(launcherArgs, false)
 
       if (conf.runsInInternalClusterMode || conf.isAutoClusterStartUsed) {
-        val expectedSize = conf.clusterSize.get.toInt
+        val expectedSize = nodes.length
         val discoveredSize = waitForCloudSize(expectedSize, conf.cloudTimeout)
         if (discoveredSize < expectedSize) {
           logError(s"Exiting! H2O cluster was of size $discoveredSize but expected was $expectedSize!!")
