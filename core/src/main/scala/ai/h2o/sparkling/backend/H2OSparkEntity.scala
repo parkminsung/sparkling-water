@@ -21,7 +21,7 @@ import ai.h2o.sparkling.frame.{H2OChunk, H2OFrame}
 import org.apache.spark.Partition
 
 /**
- * Contains functions that are shared between all H2O DataFrames and RDDs.
+ * Contains functions that are shared between H2O DataFrames and RDDs.
  */
 private[backend] trait H2OSparkEntity {
   /** Underlying H2O Frame */
@@ -39,7 +39,6 @@ private[backend] trait H2OSparkEntity {
 
   /** Chunk locations helps us to determine the node which really has the data we needs. */
   val chksLocation: Option[Array[H2OChunk]] = Some(frame.chunks)
-
 
   /** Selected column indices */
   val selectedColumnIndices: Array[Int]

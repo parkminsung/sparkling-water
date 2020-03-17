@@ -30,9 +30,9 @@ import org.apache.spark.sql.{Row, SQLContext}
  */
 case class H2OFrameRelation(frame: H2OFrame, copyMetadata: Boolean)
                            (@transient val sqlContext: SQLContext)
-  extends BaseRelation with TableScan with PrunedScan /* with PrunedFilterScan */ {
+  extends BaseRelation with TableScan with PrunedScan {
 
-  lazy val h2oContext = H2OContext.ensure("H2OContext has to be started in order to do " +
+  private lazy val hc = H2OContext.ensure("H2OContext has to be started in order to do " +
     "transformations between Spark and H2O frames.")
 
   // Get rid of annoying print
@@ -43,10 +43,10 @@ case class H2OFrameRelation(frame: H2OFrame, copyMetadata: Boolean)
   override val schema: StructType = createSchema(frame, copyMetadata)
 
   override def buildScan(): RDD[Row] =
-    new H2ODataFrame(frame)(h2oContext).asInstanceOf[RDD[Row]]
+    new H2ODataFrame(frame)(hc).asInstanceOf[RDD[Row]]
 
   override def buildScan(requiredColumns: Array[String]): RDD[Row] =
-    new H2ODataFrame(frame, requiredColumns)(h2oContext).asInstanceOf[RDD[Row]]
+    new H2ODataFrame(frame, requiredColumns)(hc).asInstanceOf[RDD[Row]]
 
 
   private def extractMetadata(column: H2OColumn, numberOfRows: Long): Metadata = {
