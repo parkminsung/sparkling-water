@@ -20,41 +20,32 @@ package ai.h2o.sparkling.backend.external
 import java.io.{File, FileInputStream, FileOutputStream}
 import java.util.Properties
 
-import ai.h2o.sparkling.backend.exceptions.{H2OClusterNotReachableException, RestApiException}
-import ai.h2o.sparkling.backend.utils.{ArgumentBuilder, RestApiUtils}
+import ai.h2o.sparkling.backend.utils.{ArgumentBuilder, RestApiUtils, SharedBackendUtils, ShellUtils}
 import ai.h2o.sparkling.backend.{SharedBackendConf, SparklingBackend}
 import ai.h2o.sparkling.utils.ScalaUtils._
 import ai.h2o.sparkling.utils.SparkSessionUtils
 import org.apache.commons.io.IOUtils
 import org.apache.spark.expose.Logging
-import org.apache.spark.h2o.utils.NodeDesc
-import org.apache.spark.h2o.{BuildInfo, H2OConf, H2OContext}
+import org.apache.spark.h2o.{H2OConf, H2OContext}
 import org.apache.spark.{SparkEnv, SparkFiles}
-import water.api.schemas3.CloudLockV3
 
 import scala.io.Source
 
-
 class ExternalH2OBackend(val hc: H2OContext) extends SparklingBackend with Logging {
 
-  var yarnAppId: Option[String] = None
-
-  override def init(conf: H2OConf): Array[NodeDesc] = {
+  override def startH2OCluster(conf: H2OConf): Unit = {
     if (conf.isAutoClusterStartUsed) {
       launchExternalH2OOnYarn(conf)
     }
+  }
 
-    logInfo("Connecting to external H2O cluster.")
-    val nodes = getAndVerifyWorkerNodes(conf)
-    if (!RestApiUtils.isRestAPIBased(hc)) {
-      ExternalH2OBackend.startH2OClient(hc, conf, nodes)
-    }
-    nodes
+  private def getYarnAppId(): Option[String] = {
+    hc.getConf.getOption(ExternalBackendConf.PROP_EXTERNAL_CLUSTER_YARN_APP_ID._1)
   }
 
   override def backendUIInfo: Seq[(String, String)] = {
     Seq(
-      ("External backend YARN AppID", yarnAppId),
+      ("External backend YARN AppID", getYarnAppId()),
       ("External IP", hc.getConf.h2oCluster)
     ).filter(_._2.nonEmpty).map { case (k, v) => (k, v.get) }
   }
@@ -62,18 +53,18 @@ class ExternalH2OBackend(val hc: H2OContext) extends SparklingBackend with Loggi
   override def epilog: String =
     if (hc.getConf.isAutoClusterStartUsed) {
       s"""
-         | * Yarn App ID of external H2O cluster: ${yarnAppId.get}
+         | * Yarn App ID of external H2O cluster: ${getYarnAppId().get}
     """.stripMargin
     } else {
       ""
     }
 
-  private def launchExternalH2OOnYarn(conf: H2OConf): Unit = {
+  private def launchExternalH2OOnYarn(conf: H2OConf): Unit =  {
     logInfo("Starting the external H2O cluster on YARN.")
     val cmdToLaunch = getExternalH2ONodesArguments(conf)
     logInfo("Command used to start H2O on yarn: " + cmdToLaunch.mkString(" "))
 
-    val proc = ExternalH2OBackend.launchShellCommand(cmdToLaunch)
+    val proc = ShellUtils.launchShellCommand(cmdToLaunch)
 
     val notifyFile = new File(conf.clusterInfoFile.get)
     if (!notifyFile.exists()) {
@@ -92,7 +83,8 @@ class ExternalH2OBackend(val hc: H2OContext) extends SparklingBackend with Loggi
     // get ip port
     val clusterInfo = Source.fromFile(conf.clusterInfoFile.get).getLines()
     val ipPort = clusterInfo.next()
-    yarnAppId = Some(clusterInfo.next().replace("job", "application"))
+    val yarnAppId = clusterInfo.next().replace("job", "application")
+    conf.set(ExternalBackendConf.PROP_EXTERNAL_CLUSTER_YARN_APP_ID._1, yarnAppId)
     // we no longer need the notification file
     new File(conf.clusterInfoFile.get).delete()
     logInfo(s"Yarn ID obtained from cluster file: $yarnAppId")
@@ -167,78 +159,9 @@ class ExternalH2OBackend(val hc: H2OContext) extends SparklingBackend with Loggi
         None
     }
   }
-
-  private def stopExternalH2OCluster(): Int = {
-    ExternalH2OBackend.launchShellCommand(Seq[String]("yarn", "application", "-kill", yarnAppId.get))
-  }
-
-  private def verifyVersion(nodes: Array[NodeDesc]): Unit = {
-    val referencedVersion = BuildInfo.H2OVersion
-    for (node <- nodes) {
-      val externalVersion = RestApiUtils.getCloudInfoFromNode(node, hc.getConf).version
-      if (referencedVersion != externalVersion) {
-        if (hc.getConf.isAutoClusterStartUsed) {
-          stopExternalH2OCluster()
-        }
-        throw new RuntimeException(
-          s"""The external H2O node ${node.ipPort()} is of version $externalVersion but Sparkling Water
-             |is using version of H2O $referencedVersion. Please make sure to use the corresponding assembly H2O JAR.""".stripMargin)
-      }
-    }
-  }
-
-  private def lockCloud(conf: H2OConf): Unit = {
-    val endpoint = RestApiUtils.getClusterEndpoint(conf)
-    RestApiUtils.update[CloudLockV3](endpoint, "/3/CloudLock", conf, Map("reason" -> "Locked from Sparkling Water."))
-  }
-
-  private def verifyWebOpen(nodes: Array[NodeDesc], conf: H2OConf): Unit = {
-    val nodesWithoutWeb = nodes.flatMap { node =>
-      try {
-        RestApiUtils.getCloudInfoFromNode(node, conf)
-        None
-      } catch {
-        case cause: RestApiException => Some((node, cause))
-      }
-    }
-    if (nodesWithoutWeb.nonEmpty) {
-      throw new H2OClusterNotReachableException(
-        s"""
-    The following worker nodes are not reachable, but belong to the cluster:
-    ${conf.h2oCluster.get} - ${conf.cloudName.get}:
-    ----------------------------------------------
-    ${nodesWithoutWeb.map(_._1.ipPort()).mkString("\n    ")}""", nodesWithoutWeb.head._2)
-    }
-  }
-
-  private def getAndVerifyWorkerNodes(conf: H2OConf): Array[NodeDesc] = {
-    try {
-      lockCloud(conf)
-      val nodes = RestApiUtils.getNodes(conf)
-      verifyWebOpen(nodes, conf)
-      if (!conf.isBackendVersionCheckDisabled) {
-        verifyVersion(nodes)
-      }
-      val leaderIpPort = RestApiUtils.getLeaderNode(conf).ipPort()
-      if (conf.h2oCluster.get != leaderIpPort) {
-        logInfo(s"Updating %s to H2O's leader node %s".format(ExternalBackendConf.PROP_EXTERNAL_CLUSTER_REPRESENTATIVE._1, leaderIpPort))
-        conf.setH2OCluster(leaderIpPort)
-      }
-      nodes
-    } catch {
-      case cause: RestApiException =>
-        val h2oCluster = conf.h2oCluster.get + conf.contextPath.getOrElse("")
-        if (conf.isAutoClusterStartUsed) {
-          stopExternalH2OCluster()
-        }
-        throw new H2OClusterNotReachableException(
-          s"""External H2O cluster $h2oCluster - ${conf.cloudName.get} is not reachable.
-             |H2OContext has not been created.""".stripMargin, cause)
-    }
-  }
 }
 
-object ExternalH2OBackend extends ExternalBackendUtils {
+object ExternalH2OBackend extends SharedBackendUtils {
 
   override def checkAndUpdateConf(conf: H2OConf): H2OConf = {
     super.checkAndUpdateConf(conf)

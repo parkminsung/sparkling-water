@@ -15,21 +15,26 @@
 * limitations under the License.
 */
 
-package ai.h2o.sparkling.backend.external
+package ai.h2o.sparkling.backend.utils
 
 import java.net.{InetAddress, NetworkInterface}
 
-import ai.h2o.sparkling.backend.utils.SharedBackendUtils
+import ai.h2o.sparkling.backend.external.ExternalH2OBackend
 import org.apache.spark.SparkEnv
-import org.apache.spark.h2o.utils.NodeDesc
+import org.apache.spark.expose.Logging
 import org.apache.spark.h2o.{H2OConf, H2OContext}
+import org.apache.spark.h2o.utils.NodeDesc
+import water.{H2O, H2OStarter, Paxos}
 import water.api.RestAPIManager
 import water.init.{HostnameGuesser, NetworkBridge}
-import water.{H2O, H2OStarter, Paxos}
 
-private[external] trait ExternalBackendUtils extends SharedBackendUtils {
+/**
+ * All helper methods which are used when H2O client is running on Spark driver
+ * This class should be removed after we remove H2O client from Scala as well
+ */
+object H2OClientUtils extends SharedBackendUtils {
 
-  protected[external] def startH2OClient(hc: H2OContext, conf: H2OConf, nodes: Array[NodeDesc]): Unit = {
+  def startH2OClient(hc: H2OContext, conf: H2OConf, nodes: Array[NodeDesc]): NodeDesc = {
     setClientIp(conf)
     val args = getH2OClientArgs(conf).toArray
     val launcherArgs = toH2OArgs(args, nodes)
@@ -41,7 +46,7 @@ private[external] trait ExternalBackendUtils extends SharedBackendUtils {
       val expectedSize = conf.clusterSize.get.toInt
       val discoveredSize = waitForCloudSize(expectedSize, conf.cloudTimeout)
       if (discoveredSize < expectedSize) {
-        logError(s"Exiting! External H2O cluster was of size $discoveredSize but expected was $expectedSize!!")
+        logError(s"Exiting! H2O cluster was of size $discoveredSize but expected was $expectedSize!!")
         hc.stop(stopSparkContext = true)
         throw new RuntimeException("Cloud size " + discoveredSize + " under " + expectedSize);
       }
@@ -49,26 +54,7 @@ private[external] trait ExternalBackendUtils extends SharedBackendUtils {
 
     RestAPIManager(hc).registerAll()
     H2O.startServingRestApi()
-  }
-
-  protected[external] def launchShellCommand(cmdToLaunch: Seq[String]): Int = {
-    import scala.sys.process._
-    val processOut = new StringBuffer()
-    val processErr = new StringBuffer()
-
-    val proc = cmdToLaunch.mkString(" ").!(ProcessLogger(
-      { msg =>
-        processOut.append(msg + "\n")
-        println(msg)
-      }, {
-        errMsg =>
-          processErr.append(errMsg + "\n")
-          println(errMsg)
-      }))
-
-    logInfo(processOut.toString)
-    logError(processErr.toString)
-    proc
+    NodeDesc(SparkEnv.get.executorId, H2O.SELF_ADDRESS.getHostAddress, H2O.API_PORT)
   }
 
   private def identifyClientIp(remoteAddress: String): Option[String] = {

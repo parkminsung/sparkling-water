@@ -14,16 +14,28 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
+package ai.h2o.sparkling.backend.utils
 
-package ai.h2o.sparkling.backend
+import org.apache.spark.expose.Logging
 
-import org.apache.spark.h2o.H2OConf
+private[backend] object ShellUtils extends Logging {
+  def launchShellCommand(cmdToLaunch: Seq[String]): Int = {
+    import scala.sys.process._
+    val processOut = new StringBuffer()
+    val processErr = new StringBuffer()
 
-trait SparklingBackend {
+    val proc = cmdToLaunch.mkString(" ").!(ProcessLogger(
+      { msg =>
+        processOut.append(msg + "\n")
+        println(msg)
+      }, {
+        errMsg =>
+          processErr.append(errMsg + "\n")
+          println(errMsg)
+      }))
 
-  def startH2OCluster(conf: H2OConf): Unit
-
-  def backendUIInfo: Seq[(String, String)]
-
-  def epilog: String
+    logInfo(processOut.toString)
+    logError(processErr.toString)
+    proc
+  }
 }

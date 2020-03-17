@@ -69,44 +69,7 @@ class H2OContext private(private val conf: H2OConf) extends H2OContextExtensions
   self =>
   val sparkSession = SparkSessionUtils.active
   val sparkContext = sparkSession.sparkContext
-  private val backendHeartbeatThread = new Thread {
-    override def run(): Unit = {
-      while (!Thread.interrupted()) {
-        try {
-          val swHeartBeatInfo = getSparklingWaterHeartbeatEvent()
-          if (conf.runsInExternalClusterMode) {
-            if (!swHeartBeatInfo.cloudHealthy) {
-              logError("External H2O cluster not healthy!")
-              if (conf.isKillOnUnhealthyClusterEnabled) {
-                logError("Stopping external H2O cluster as it is not healthy.")
-                if (RestApiUtils.isRestAPIBased(Some(H2OContext.this))) {
-                  H2OContext.this.stop(stopSparkContext = false, stopJvm = false, inShutdownHook = false)
-                } else {
-                  H2OContext.this.stop(true)
-                }
-              }
-            }
-          }
-          sparkContext.listenerBus.post(swHeartBeatInfo)
-        } catch {
-          case cause: RestApiException =>
-            H2OContext.get().head.stop(stopSparkContext = false, stopJvm = false, inShutdownHook = false)
-            throw new H2OClusterNotReachableException(
-              s"""External H2O cluster ${conf.h2oCluster.get + conf.contextPath.getOrElse("")} - ${conf.cloudName.get} is not reachable,
-                 |H2OContext has been closed! Please create a new H2OContext to a healthy and reachable (web enabled)
-                 |external H2O cluster.""".stripMargin, cause)
-        }
-
-        try {
-          Thread.sleep(conf.backendHeartbeatInterval)
-        } catch {
-          case _: InterruptedException => Thread.currentThread.interrupt()
-        }
-      }
-    }
-  }
-  backendHeartbeatThread.setDaemon(true)
-
+  private val backendHeartbeatThread = createBackendHeartbeatThread()
   private var stopped = false
   /** Here the client means Python or R H2O client */
   private var clientConnected = false
@@ -118,7 +81,8 @@ class H2OContext private(private val conf: H2OConf) extends H2OContextExtensions
   }
   H2OContext.logStartingInfo(conf)
   H2OContext.verifySparkVersion()
-  private val nodes = backend.init(conf)
+  backend.startH2OCluster(conf)
+  private val nodes = connectToH2OCluster()
   setTimeZone()
   // The lowest priority used by Spark is 25 (removing temp dirs). We need to perform cleaning up of H2O
   // resources before Spark does as we run as embedded application inside the Spark
@@ -419,6 +383,56 @@ class H2OContext private(private val conf: H2OConf) extends H2OContextExtensions
     val ping = RestApiUtils.getPingInfo(conf)
     val memoryInfo = ping.nodes.map(node => (node.ip_port, PrettyPrint.bytes(node.free_mem)))
     SparklingWaterHeartbeatEvent(ping.cloud_healthy, ping.cloud_uptime_millis, memoryInfo)
+  }
+
+  private def connectToH2OCluster(): Array[NodeDesc] = {
+    logInfo("Connecting to H2O cluster.")
+    val nodes = getAndVerifyWorkerNodes(conf)
+    if (!RestApiUtils.isRestAPIBased(this)) {
+      H2OClientUtils.startH2OClient(this, conf, nodes)
+    }
+    nodes
+  }
+
+  private def createBackendHeartbeatThread(): Thread = {
+    val thread = new Thread {
+      override def run(): Unit = {
+        while (!Thread.interrupted()) {
+          try {
+            val swHeartBeatInfo = getSparklingWaterHeartbeatEvent()
+            if (conf.runsInExternalClusterMode) {
+              if (!swHeartBeatInfo.cloudHealthy) {
+                logError("External H2O cluster not healthy!")
+                if (conf.isKillOnUnhealthyClusterEnabled) {
+                  logError("Stopping external H2O cluster as it is not healthy.")
+                  if (RestApiUtils.isRestAPIBased(Some(H2OContext.this))) {
+                    H2OContext.this.stop(stopSparkContext = false, stopJvm = false, inShutdownHook = false)
+                  } else {
+                    H2OContext.this.stop(true)
+                  }
+                }
+              }
+            }
+            sparkContext.listenerBus.post(swHeartBeatInfo)
+          } catch {
+            case cause: RestApiException =>
+              H2OContext.get().head.stop(stopSparkContext = false, stopJvm = false, inShutdownHook = false)
+              throw new H2OClusterNotReachableException(
+                s"""External H2O cluster ${conf.h2oCluster.get + conf.contextPath.getOrElse("")} - ${conf.cloudName.get} is not reachable,
+                   |H2OContext has been closed! Please create a new H2OContext to a healthy and reachable (web enabled)
+                   |external H2O cluster.""".stripMargin, cause)
+          }
+
+          try {
+            Thread.sleep(conf.backendHeartbeatInterval)
+          } catch {
+            case _: InterruptedException => Thread.currentThread.interrupt()
+          }
+        }
+      }
+    }
+    thread.setDaemon(true)
+    thread
   }
 }
 
